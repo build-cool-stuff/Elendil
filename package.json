@@ -1,4 +1,10 @@
 {
+  "name": "elendil",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "shared-components"
+  ],
   "dependencies": {
     "@clerk/nextjs": "^6.36.8",
     "@supabase/supabase-js": "^2.91.0",

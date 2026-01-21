@@ -60,7 +60,7 @@
     "react-resizable-panels": "^2.1.7",
     "recharts": "2.15.4",
     "shaders": "2.1.1",
-    "shared-components": "file:../shared-components",
+    "shared-components": "*",
     "sonner": "^1.7.4",
     "svix": "^1.84.1",
     "tailwind-merge": "^3.4.0",
