@@ -2,6 +2,8 @@
   "dependencies": {
     "@clerk/nextjs": "^6.36.8",
     "@supabase/supabase-js": "^2.91.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
     "svix": "^1.84.1"
   }
 }
