@@ -194,20 +194,19 @@ export async function POST(
   }
 
   // Fire and forget - don't await
-  supabase
-    .from('scans')
-    .insert(scanData)
-    .then(({ error }) => {
+  void (async () => {
+    try {
+      const { error } = await supabase.from('scans').insert(scanData)
       if (error) {
         console.error('[Track] Failed to record scan:', error)
       } else {
         const elapsed = Date.now() - startTime
         console.log(`[Track] Scan recorded: ${slug} (${elapsed}ms)`)
       }
-    })
-    .catch((err) => {
+    } catch (err) {
       console.error('[Track] Scan insert failed:', err)
-    })
+    }
+  })()
 
   // 12. Return success with geo info (for debugging in dev)
   return NextResponse.json({
