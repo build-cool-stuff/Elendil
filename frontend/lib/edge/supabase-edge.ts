@@ -92,7 +92,7 @@ export async function lookupCampaign(
       custom_domain,
       status,
       user_id,
-      users!inner (
+      users (
         meta_pixel_id,
         meta_integrations (
           pixel_id,
@@ -107,7 +107,13 @@ export async function lookupCampaign(
     .eq('status', 'active')
     .single()
 
-  if (error || !data) {
+  if (error) {
+    console.error('[Edge] Campaign lookup error:', error.message, { slug: slugOrCode })
+    return null
+  }
+
+  if (!data) {
+    console.log('[Edge] Campaign not found:', slugOrCode)
     return null
   }
 
