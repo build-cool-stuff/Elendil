@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Card, Button, Input, Badge } from "shared-components"
-import { Plus, Download, Copy, ExternalLink, Trash2, QrCode, Eye, Pause, Play } from "lucide-react"
+import { Plus, Download, Copy, ExternalLink, Trash2, QrCode, Eye, Pause, Play, Archive, Filter } from "lucide-react"
 import type { Campaign, CampaignStatus } from "@/lib/supabase/types"
 
 interface CampaignWithStats extends Campaign {
@@ -12,6 +12,8 @@ interface CampaignWithStats extends Campaign {
   }
 }
 
+type StatusFilter = "all" | "active" | "paused" | "archived"
+
 export function QRCodeGenerator() {
   const [campaigns, setCampaigns] = useState<CampaignWithStats[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -19,6 +21,7 @@ export function QRCodeGenerator() {
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignWithStats | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
 
   // Form state
   const [formData, setFormData] = useState({
@@ -116,8 +119,31 @@ export function QRCodeGenerator() {
     }
   }
 
-  async function deleteCampaign(campaignId: string) {
+  async function archiveCampaign(campaignId: string) {
     if (!confirm("Are you sure you want to archive this campaign?")) return
+
+    try {
+      const response = await fetch(`/api/campaigns/${campaignId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "archived" }),
+      })
+
+      if (response.ok) {
+        setCampaigns(campaigns.map(c =>
+          c.id === campaignId ? { ...c, status: "archived" as CampaignStatus } : c
+        ))
+        if (selectedCampaign?.id === campaignId) {
+          setSelectedCampaign({ ...selectedCampaign, status: "archived" })
+        }
+      }
+    } catch (error) {
+      console.error("Failed to archive campaign:", error)
+    }
+  }
+
+  async function permanentDeleteCampaign(campaignId: string) {
+    if (!confirm("Are you sure you want to PERMANENTLY delete this campaign? This action cannot be undone.")) return
 
     try {
       const response = await fetch(`/api/campaigns/${campaignId}`, {
@@ -134,6 +160,11 @@ export function QRCodeGenerator() {
       console.error("Failed to delete campaign:", error)
     }
   }
+
+  const filteredCampaigns = campaigns.filter(campaign => {
+    if (statusFilter === "all") return true
+    return campaign.status === statusFilter
+  })
 
   function copyToClipboard(text: string, id: string) {
     navigator.clipboard.writeText(text)
@@ -270,22 +301,46 @@ export function QRCodeGenerator() {
       <div className="grid grid-cols-2 gap-6">
         {/* Campaign List */}
         <Card variant="glass" className="p-6">
-          <h3 className="text-xl font-semibold text-white mb-4">Your Campaigns</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold text-white">Your Campaigns</h3>
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-white/60" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                className="bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+              >
+                <option value="all" className="bg-gray-800">All</option>
+                <option value="active" className="bg-gray-800">Active</option>
+                <option value="paused" className="bg-gray-800">Paused</option>
+                <option value="archived" className="bg-gray-800">Archived</option>
+              </select>
+            </div>
+          </div>
 
           {isLoading ? (
             <div className="text-center py-8">
               <div className="w-8 h-8 border-2 border-white/20 border-t-white/70 rounded-full animate-spin mx-auto" />
               <p className="text-white/60 mt-2">Loading campaigns...</p>
             </div>
-          ) : campaigns.length === 0 ? (
+          ) : filteredCampaigns.length === 0 ? (
             <div className="text-center py-8">
               <QrCode className="w-12 h-12 text-white/30 mx-auto mb-3" />
-              <p className="text-white/60">No campaigns yet</p>
-              <p className="text-white/40 text-sm">Create your first QR code campaign above</p>
+              {campaigns.length === 0 ? (
+                <>
+                  <p className="text-white/60">No campaigns yet</p>
+                  <p className="text-white/40 text-sm">Create your first QR code campaign above</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-white/60">No {statusFilter} campaigns</p>
+                  <p className="text-white/40 text-sm">Try changing the filter above</p>
+                </>
+              )}
             </div>
           ) : (
             <div className="space-y-3 max-h-[500px] overflow-y-auto">
-              {campaigns.map((campaign) => (
+              {filteredCampaigns.map((campaign) => (
                 <div
                   key={campaign.id}
                   onClick={() => setSelectedCampaign(campaign)}
@@ -310,7 +365,7 @@ export function QRCodeGenerator() {
                     <div className="flex items-center gap-1 ml-2">
                       {campaign.status === "active" ? (
                         <Button
-                          size="icon-sm"
+                          size="icon"
                           variant="glass"
                           onClick={(e) => {
                             e.stopPropagation()
@@ -318,11 +373,11 @@ export function QRCodeGenerator() {
                           }}
                           title="Pause"
                         >
-                          <Pause className="h-3 w-3" />
+                          <Pause className="h-5 w-5" />
                         </Button>
                       ) : campaign.status === "paused" ? (
                         <Button
-                          size="icon-sm"
+                          size="icon"
                           variant="glass"
                           onClick={(e) => {
                             e.stopPropagation()
@@ -330,19 +385,45 @@ export function QRCodeGenerator() {
                           }}
                           title="Activate"
                         >
-                          <Play className="h-3 w-3" />
+                          <Play className="h-5 w-5" />
+                        </Button>
+                      ) : campaign.status === "archived" ? (
+                        <Button
+                          size="icon"
+                          variant="glass"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            updateCampaignStatus(campaign.id, "active")
+                          }}
+                          title="Restore"
+                        >
+                          <Play className="h-5 w-5" />
                         </Button>
                       ) : null}
+                      {campaign.status !== "archived" && (
+                        <Button
+                          size="icon"
+                          variant="glass"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            archiveCampaign(campaign.id)
+                          }}
+                          title="Archive"
+                        >
+                          <Archive className="h-5 w-5" />
+                        </Button>
+                      )}
                       <Button
-                        size="icon-sm"
+                        size="icon"
                         variant="glass"
                         onClick={(e) => {
                           e.stopPropagation()
-                          deleteCampaign(campaign.id)
+                          permanentDeleteCampaign(campaign.id)
                         }}
-                        title="Archive"
+                        title="Delete permanently"
+                        className="hover:bg-red-500/20"
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-5 w-5" />
                       </Button>
                     </div>
                   </div>
