@@ -125,6 +125,7 @@ export async function POST(request: Request) {
     destination_url,
     cookie_duration_days = 30,
     custom_tracking_code,
+    bridge_duration_ms = 500,
     tracking_base_url: providedTrackingBaseUrl,
   } = body
 
@@ -150,6 +151,13 @@ export async function POST(request: Request) {
   if (![30, 60, 90].includes(cookie_duration_days)) {
     return NextResponse.json(
       { error: "Cookie duration must be 30, 60, or 90 days" },
+      { status: 400 }
+    )
+  }
+
+  if (typeof bridge_duration_ms !== "number" || bridge_duration_ms < 100 || bridge_duration_ms > 5000) {
+    return NextResponse.json(
+      { error: "Bridge duration must be between 100 and 5000 milliseconds" },
       { status: 400 }
     )
   }
@@ -197,6 +205,8 @@ export async function POST(request: Request) {
         destination_url,
         tracking_code: trackingCode,
         cookie_duration_days: cookie_duration_days as CookieDuration,
+        bridge_enabled: true,
+        bridge_duration_ms,
         tracking_base_url: trackingBaseUrl,
         tracking_url_source: trackingUrlSource,
         qr_code_svg: qrResult.qrCodeSvg,

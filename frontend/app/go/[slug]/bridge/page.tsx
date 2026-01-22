@@ -40,6 +40,7 @@ function BridgeContent() {
   const eventId = searchParams.get("eid")
   const slug = params.slug as string
   const hasTracked = useRef(false)
+  const redirectStartedAt = useRef<number>(0)
 
   const [campaign, setCampaign] = useState<CampaignData | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -134,6 +135,7 @@ function BridgeContent() {
       await fetch(`/api/go/${slug}/track`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        keepalive: true,
         body: JSON.stringify({
           event_id: eventId,
           referrer: document.referrer || null,
@@ -166,29 +168,20 @@ function BridgeContent() {
     }
   }, [campaign, firePixel, recordPrecisionScan])
 
-  // Auto-redirect when tracking completes
+  // Auto-redirect after the configured bridge duration (minimum display time)
   useEffect(() => {
     if (!campaign) return
 
-    const allComplete =
-      trackingStatus.geoComplete && trackingStatus.pixelComplete
+    // Default to 800ms - optimal time for Meta Pixel + BigDataCloud API to complete
+    const delayMs = campaign.bridge_duration_ms || 800
+    redirectStartedAt.current = Date.now()
 
-    if (allComplete) {
-      // Small delay to ensure all async operations complete
-      const redirectTimer = setTimeout(() => {
-        window.location.href = campaign.destination_url
-      }, 100)
-
-      return () => clearTimeout(redirectTimer)
-    }
-
-    // Fallback: redirect after max wait time regardless of tracking status
-    const fallbackTimer = setTimeout(() => {
+    const timer = setTimeout(() => {
       window.location.href = campaign.destination_url
-    }, campaign.bridge_duration_ms || 800)
+    }, delayMs)
 
-    return () => clearTimeout(fallbackTimer)
-  }, [campaign, trackingStatus])
+    return () => clearTimeout(timer)
+  }, [campaign])
 
   // Error state
   if (error) {

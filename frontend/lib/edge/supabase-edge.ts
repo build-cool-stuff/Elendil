@@ -145,7 +145,7 @@ export async function lookupCampaign(
     slug: data.slug,
     cookie_duration_days: data.cookie_duration_days || 30,
     bridge_enabled: data.bridge_enabled ?? true,
-    bridge_duration_ms: data.bridge_duration_ms || 800,
+    bridge_duration_ms: data.bridge_duration_ms || 500,
     custom_domain: data.custom_domain,
     status: data.status,
     user_id: data.user_id,
