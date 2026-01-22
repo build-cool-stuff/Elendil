@@ -31,6 +31,7 @@ export interface Database {
           email: string
           full_name: string | null
           avatar_url: string | null
+          meta_pixel_id: string | null
           created_at: string
           updated_at: string
         }
@@ -40,6 +41,7 @@ export interface Database {
           email: string
           full_name?: string | null
           avatar_url?: string | null
+          meta_pixel_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -49,6 +51,7 @@ export interface Database {
           email?: string
           full_name?: string | null
           avatar_url?: string | null
+          meta_pixel_id?: string | null
           created_at?: string
           updated_at?: string
         }

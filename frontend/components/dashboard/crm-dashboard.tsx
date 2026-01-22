@@ -24,8 +24,14 @@ export function CRMDashboard() {
   const [isShaderLoaded, setIsShaderLoaded] = useState(false)
   const { signOut } = useClerk()
 
-  const handleLogout = () => {
-    signOut({ redirectUrl: "/" })
+  const handleLogout = async () => {
+    try {
+      await signOut({ redirectUrl: "/" })
+    } catch (error) {
+      console.error("Logout failed:", error)
+      // Fallback: redirect manually
+      window.location.href = "/"
+    }
   }
 
   useEffect(() => {
@@ -132,8 +138,8 @@ export function CRMDashboard() {
         <Card variant="glass" className="col-span-2 p-6 pb-6 h-fit flex flex-col">
           <div className="space-y-6">
             {/* Logo */}
-            <div className="text-center">
-              <h1 className="text-2xl font-bold text-white">Elendil</h1>
+            <div className="flex flex-col items-center">
+              <img src="/logo.png" alt="Elendil" className="h-12 w-auto mb-2" />
               <p className="text-white/60 text-sm">QR Tracking Platform</p>
             </div>
 
@@ -244,6 +250,61 @@ function CampaignsPlaceholder() {
 
 function SettingsPanel() {
   const [glassOpacity, setGlassOpacity] = useState(25)
+  const [metaPixelId, setMetaPixelId] = useState("")
+  const [originalPixelId, setOriginalPixelId] = useState("")
+  const [isLoadingPixel, setIsLoadingPixel] = useState(true)
+  const [isSavingPixel, setIsSavingPixel] = useState(false)
+  const [pixelSaveStatus, setPixelSaveStatus] = useState<{ type: "success" | "error"; message: string } | null>(null)
+
+  // Fetch user settings on mount
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch("/api/user/settings")
+        if (res.ok) {
+          const data = await res.json()
+          setMetaPixelId(data.meta_pixel_id || "")
+          setOriginalPixelId(data.meta_pixel_id || "")
+        }
+      } catch (error) {
+        console.error("Failed to fetch settings:", error)
+      } finally {
+        setIsLoadingPixel(false)
+      }
+    }
+    fetchSettings()
+  }, [])
+
+  // Save Meta Pixel ID
+  const saveMetaPixelId = async () => {
+    setIsSavingPixel(true)
+    setPixelSaveStatus(null)
+
+    try {
+      const res = await fetch("/api/user/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meta_pixel_id: metaPixelId.trim() || null }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setPixelSaveStatus({ type: "error", message: data.error || "Failed to save" })
+        return
+      }
+
+      setOriginalPixelId(data.meta_pixel_id || "")
+      setPixelSaveStatus({ type: "success", message: data.message })
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setPixelSaveStatus(null), 3000)
+    } catch (error) {
+      setPixelSaveStatus({ type: "error", message: "Failed to save settings" })
+    } finally {
+      setIsSavingPixel(false)
+    }
+  }
 
   // Update CSS custom properties in real-time
   const updateGlassOpacity = (value: number) => {
@@ -251,11 +312,77 @@ function SettingsPanel() {
     document.documentElement.style.setProperty('--glass-opacity', (value / 100).toString())
   }
 
+  const hasPixelIdChanged = metaPixelId.trim() !== originalPixelId
+
   return (
     <div className="space-y-6">
       <Card variant="glass" className="p-6">
         <h2 className="text-2xl font-bold text-white mb-2">Settings</h2>
         <p className="text-white/60">Customize your dashboard appearance and preferences.</p>
+      </Card>
+
+      {/* Meta Pixel Integration - First Section */}
+      <Card variant="glass" className="p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+            <Facebook className="h-5 w-5 text-blue-400" />
+          </div>
+          <div>
+            <h3 className="text-xl font-semibold text-white">Meta Pixel</h3>
+            <p className="text-white/50 text-sm">Track QR code scans with your Meta Pixel</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-white/80 font-medium text-sm block mb-2">
+              Pixel ID
+            </label>
+            {isLoadingPixel ? (
+              <div className="h-12 bg-white/10 rounded-xl animate-pulse" />
+            ) : (
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  value={metaPixelId}
+                  onChange={(e) => setMetaPixelId(e.target.value.replace(/\D/g, ""))}
+                  placeholder="Enter your Meta Pixel ID (e.g., 1234567890123456)"
+                  className="flex-1 h-12 px-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all"
+                />
+                <Button
+                  variant="glass"
+                  className={`h-12 px-6 ${hasPixelIdChanged ? "bg-blue-500/30 hover:bg-blue-500/40" : ""}`}
+                  onClick={saveMetaPixelId}
+                  disabled={isSavingPixel || !hasPixelIdChanged}
+                >
+                  {isSavingPixel ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            )}
+            {pixelSaveStatus && (
+              <p className={`text-sm mt-2 ${pixelSaveStatus.type === "success" ? "text-green-400" : "text-red-400"}`}>
+                {pixelSaveStatus.message}
+              </p>
+            )}
+            <p className="text-white/40 text-sm mt-2">
+              Find your Pixel ID in Meta Events Manager under Data Sources. When set, the pixel will fire automatically on every QR code scan.
+            </p>
+          </div>
+
+          {originalPixelId && (
+            <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-green-300 text-sm font-medium">Pixel Active</p>
+                <p className="text-green-300/60 text-xs">Events will fire on all QR code scans</p>
+              </div>
+            </div>
+          )}
+        </div>
       </Card>
 
       <Card variant="glass" className="p-6">
@@ -294,15 +421,8 @@ function SettingsPanel() {
 
       <Card variant="glass" className="p-6">
         <h3 className="text-xl font-semibold text-white mb-4">Account</h3>
-        <p className="text-white/60 mb-4">Manage your account settings and integrations.</p>
+        <p className="text-white/60 mb-4">Additional integrations and settings.</p>
         <div className="space-y-3">
-          <div className="bg-white/10 rounded-xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-white font-medium">Meta Integration</p>
-              <p className="text-white/50 text-sm">Connect your Meta ad account</p>
-            </div>
-            <span className="bg-white/20 text-white/60 px-3 py-1 rounded-full text-sm">Coming Soon</span>
-          </div>
           <div className="bg-white/10 rounded-xl p-4 flex items-center justify-between">
             <div>
               <p className="text-white font-medium">Custom Domain</p>

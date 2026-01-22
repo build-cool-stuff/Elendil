@@ -67,6 +67,10 @@ export interface EdgeCampaignData {
 /**
  * Lookup campaign by slug or tracking code
  * Returns campaign data with Meta integration info if available
+ *
+ * Pixel ID priority:
+ * 1. User's direct meta_pixel_id from users table (simple setup via Settings)
+ * 2. Full Meta integration pixel_id (OAuth-based setup)
  */
 export async function lookupCampaign(
   slugOrCode: string
@@ -89,6 +93,7 @@ export async function lookupCampaign(
       status,
       user_id,
       users!inner (
+        meta_pixel_id,
         meta_integrations (
           pixel_id,
           access_token,
@@ -106,9 +111,14 @@ export async function lookupCampaign(
     return null
   }
 
-  // Extract Meta integration from nested response
-  const metaIntegration = (data.users as any)?.meta_integrations?.[0]
+  // Extract user data and Meta integration from nested response
+  const userData = data.users as any
+  const userPixelId = userData?.meta_pixel_id
+  const metaIntegration = userData?.meta_integrations?.[0]
   const isMetaActive = metaIntegration?.status === 'active'
+
+  // Priority: user's direct pixel_id > full Meta integration pixel_id
+  const effectivePixelId = userPixelId || (isMetaActive ? metaIntegration?.pixel_id : null)
 
   return {
     id: data.id,
@@ -122,7 +132,7 @@ export async function lookupCampaign(
     custom_domain: data.custom_domain,
     status: data.status,
     user_id: data.user_id,
-    meta_pixel_id: isMetaActive ? metaIntegration?.pixel_id : null,
+    meta_pixel_id: effectivePixelId,
     meta_access_token: isMetaActive ? metaIntegration?.access_token : null,
     encrypted_access_token: isMetaActive ? metaIntegration?.encrypted_access_token : null,
     encryption_iv: isMetaActive ? metaIntegration?.encryption_iv : null,
