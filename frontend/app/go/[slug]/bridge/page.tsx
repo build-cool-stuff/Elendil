@@ -73,56 +73,58 @@ function BridgeContent() {
       return
     }
 
-    // Load Meta Pixel script if not already loaded
-    if (typeof window !== "undefined" && !(window as any).fbq) {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    const w = window as any
+
+    // Ensure fbq stub exists for immediate queueing
+    if (!w.fbq) {
+      const fbq = function (...args: any[]) {
+        if ((fbq as any).callMethod) {
+          return (fbq as any).callMethod.apply(fbq, args)
+        }
+        ;(fbq as any).queue.push(args)
+      } as any
+      fbq.queue = []
+      fbq.loaded = true
+      fbq.version = "2.0"
+      fbq.push = fbq
+      w.fbq = fbq
+      w._fbq = fbq
+    }
+
+    // Load Meta Pixel script once
+    if (!document.getElementById("meta-pixel-base")) {
       const script = document.createElement("script")
-      script.innerHTML = `
-        !function(f,b,e,v,n,t,s)
-        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-        n.queue=[];t=b.createElement(e);t.async=!0;
-        t.src=v;s=b.getElementsByTagName(e)[0];
-        s.parentNode.insertBefore(t,s)}(window, document,'script',
-        'https://connect.facebook.net/en_US/fbevents.js');
-      `
+      script.id = "meta-pixel-base"
+      script.async = true
+      script.src = "https://connect.facebook.net/en_US/fbevents.js"
       document.head.appendChild(script)
     }
 
-    // Wait for fbq to be available
-    const checkFbq = setInterval(() => {
-      if ((window as any).fbq) {
-        clearInterval(checkFbq)
-        const fbq = (window as any).fbq
+    const fbq = w.fbq as (...args: any[]) => void
+    const pixelInitKey = `__elendil_pixel_${campaign.pixel_id}`
+    if (!w[pixelInitKey]) {
+      fbq("init", campaign.pixel_id)
+      fbq("track", "PageView")
+      w[pixelInitKey] = true
+    }
 
-        // Initialize pixel
-        fbq("init", campaign.pixel_id)
+    // Fire QRCodeScan custom event with optional deduplication event_id
+    const eventParams = {
+      campaign_id: campaign.id,
+      campaign_name: campaign.name,
+    }
 
-        // Fire PageView
-        fbq("track", "PageView")
+    if (eventId) {
+      fbq("trackCustom", "QRCodeScan", eventParams, { eventID: eventId })
+    } else {
+      fbq("trackCustom", "QRCodeScan", eventParams)
+    }
 
-        // Fire QRCodeScan custom event with deduplication event_id
-        fbq(
-          "track",
-          "QRCodeScan",
-          {
-            campaign_id: campaign.id,
-            campaign_name: campaign.name,
-          },
-          {
-            eventID: eventId, // Matches server-side event_id for deduplication
-          }
-        )
-
-        setTrackingStatus((prev) => ({ ...prev, pixelComplete: true }))
-      }
-    }, 50)
-
-    // Timeout after 2 seconds
-    setTimeout(() => {
-      clearInterval(checkFbq)
-      setTrackingStatus((prev) => ({ ...prev, pixelComplete: true }))
-    }, 2000)
+    setTrackingStatus((prev) => ({ ...prev, pixelComplete: true }))
   }, [campaign, eventId])
 
   // Record scan with precision geo (calls backend which uses BigDataCloud)

@@ -95,6 +95,8 @@ export async function lookupCampaign(
         user_id,
         users (
           meta_pixel_id,
+          meta_encrypted_access_token,
+          meta_encryption_iv,
           meta_integrations (
             pixel_id,
             access_token,
@@ -131,11 +133,14 @@ export async function lookupCampaign(
   // Extract user data and Meta integration from nested response
   const userData = data.users as any
   const userPixelId = userData?.meta_pixel_id
+  const userEncryptedToken = userData?.meta_encrypted_access_token
+  const userEncryptionIv = userData?.meta_encryption_iv
   const metaIntegration = userData?.meta_integrations?.[0]
   const isMetaActive = metaIntegration?.status === 'active'
 
   // Priority: user's direct pixel_id > full Meta integration pixel_id
   const effectivePixelId = userPixelId || (isMetaActive ? metaIntegration?.pixel_id : null)
+  const hasUserToken = !!(userEncryptedToken && userEncryptionIv)
 
   return {
     id: data.id,
@@ -145,14 +150,14 @@ export async function lookupCampaign(
     slug: data.slug,
     cookie_duration_days: data.cookie_duration_days || 30,
     bridge_enabled: data.bridge_enabled ?? true,
-    bridge_duration_ms: data.bridge_duration_ms || 500,
+    bridge_duration_ms: data.bridge_duration_ms || 800,
     custom_domain: data.custom_domain,
     status: data.status,
     user_id: data.user_id,
     meta_pixel_id: effectivePixelId,
-    meta_access_token: isMetaActive ? metaIntegration?.access_token : null,
-    encrypted_access_token: isMetaActive ? metaIntegration?.encrypted_access_token : null,
-    encryption_iv: isMetaActive ? metaIntegration?.encryption_iv : null,
+    meta_access_token: hasUserToken ? null : (isMetaActive ? metaIntegration?.access_token : null),
+    encrypted_access_token: hasUserToken ? userEncryptedToken : (isMetaActive ? metaIntegration?.encrypted_access_token : null),
+    encryption_iv: hasUserToken ? userEncryptionIv : (isMetaActive ? metaIntegration?.encryption_iv : null),
   }
 }
 

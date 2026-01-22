@@ -125,7 +125,7 @@ export async function POST(request: Request) {
     destination_url,
     cookie_duration_days = 30,
     custom_tracking_code,
-    bridge_duration_ms = 500,
+    bridge_duration_ms = 800,
     tracking_base_url: providedTrackingBaseUrl,
   } = body
 

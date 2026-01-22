@@ -252,9 +252,13 @@ function SettingsPanel() {
   const [glassOpacity, setGlassOpacity] = useState(25)
   const [metaPixelId, setMetaPixelId] = useState("")
   const [originalPixelId, setOriginalPixelId] = useState("")
+  const [metaCapiToken, setMetaCapiToken] = useState("")
+  const [isCapiTokenSet, setIsCapiTokenSet] = useState(false)
   const [isLoadingPixel, setIsLoadingPixel] = useState(true)
   const [isSavingPixel, setIsSavingPixel] = useState(false)
   const [pixelSaveStatus, setPixelSaveStatus] = useState<{ type: "success" | "error"; message: string } | null>(null)
+  const [isSavingToken, setIsSavingToken] = useState(false)
+  const [tokenSaveStatus, setTokenSaveStatus] = useState<{ type: "success" | "error"; message: string } | null>(null)
 
   // Fetch user settings on mount
   useEffect(() => {
@@ -265,6 +269,7 @@ function SettingsPanel() {
           const data = await res.json()
           setMetaPixelId(data.meta_pixel_id || "")
           setOriginalPixelId(data.meta_pixel_id || "")
+          setIsCapiTokenSet(!!data.meta_access_token_set)
         }
       } catch (error) {
         console.error("Failed to fetch settings:", error)
@@ -303,6 +308,66 @@ function SettingsPanel() {
       setPixelSaveStatus({ type: "error", message: "Failed to save settings" })
     } finally {
       setIsSavingPixel(false)
+    }
+  }
+
+  const saveMetaCapiToken = async () => {
+    if (!metaCapiToken.trim()) return
+
+    setIsSavingToken(true)
+    setTokenSaveStatus(null)
+
+    try {
+      const res = await fetch("/api/user/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meta_access_token: metaCapiToken.trim() }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setTokenSaveStatus({ type: "error", message: data.error || "Failed to save token" })
+        return
+      }
+
+      setIsCapiTokenSet(!!data.meta_access_token_set)
+      setMetaCapiToken("")
+      setTokenSaveStatus({ type: "success", message: "CAPI token saved successfully" })
+      setTimeout(() => setTokenSaveStatus(null), 3000)
+    } catch {
+      setTokenSaveStatus({ type: "error", message: "Failed to save token" })
+    } finally {
+      setIsSavingToken(false)
+    }
+  }
+
+  const clearMetaCapiToken = async () => {
+    setIsSavingToken(true)
+    setTokenSaveStatus(null)
+
+    try {
+      const res = await fetch("/api/user/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meta_access_token: null }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setTokenSaveStatus({ type: "error", message: data.error || "Failed to clear token" })
+        return
+      }
+
+      setIsCapiTokenSet(!!data.meta_access_token_set)
+      setMetaCapiToken("")
+      setTokenSaveStatus({ type: "success", message: "CAPI token removed" })
+      setTimeout(() => setTokenSaveStatus(null), 3000)
+    } catch {
+      setTokenSaveStatus({ type: "error", message: "Failed to clear token" })
+    } finally {
+      setIsSavingToken(false)
     }
   }
 
@@ -382,6 +447,52 @@ function SettingsPanel() {
               </div>
             </div>
           )}
+
+          <div className="pt-2">
+            <label className="text-white/80 font-medium text-sm block mb-2">
+              Conversions API Access Token (optional)
+            </label>
+            {isLoadingPixel ? (
+              <div className="h-12 bg-white/10 rounded-xl animate-pulse" />
+            ) : (
+              <div className="flex gap-3">
+                <input
+                  type="password"
+                  value={metaCapiToken}
+                  onChange={(e) => setMetaCapiToken(e.target.value)}
+                  placeholder="Paste your Meta CAPI access token"
+                  className="flex-1 h-12 px-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all"
+                />
+                <Button
+                  variant="glass"
+                  className="h-12 px-6"
+                  onClick={saveMetaCapiToken}
+                  disabled={isSavingToken || !metaCapiToken.trim()}
+                >
+                  {isSavingToken ? "Saving..." : "Save"}
+                </Button>
+                <Button
+                  variant="glass"
+                  className="h-12 px-6"
+                  onClick={clearMetaCapiToken}
+                  disabled={isSavingToken || !isCapiTokenSet}
+                >
+                  Clear
+                </Button>
+              </div>
+            )}
+            {tokenSaveStatus && (
+              <p className={`text-sm mt-2 ${tokenSaveStatus.type === "success" ? "text-green-400" : "text-red-400"}`}>
+                {tokenSaveStatus.message}
+              </p>
+            )}
+            <p className="text-white/40 text-sm mt-2">
+              Adding a CAPI token enables server-side events for more reliable attribution. Keep this token secret.
+            </p>
+            {isCapiTokenSet && (
+              <p className="text-green-300/60 text-xs mt-1">CAPI token is set and ready.</p>
+            )}
+          </div>
         </div>
       </Card>
 

@@ -35,6 +35,9 @@ export interface Database {
           full_name: string | null
           avatar_url: string | null
           meta_pixel_id: string | null
+          meta_encrypted_access_token: string | null
+          meta_encryption_iv: string | null
+          meta_encryption_version: number | null
           created_at: string
           updated_at: string
         }
@@ -45,6 +48,9 @@ export interface Database {
           full_name?: string | null
           avatar_url?: string | null
           meta_pixel_id?: string | null
+          meta_encrypted_access_token?: string | null
+          meta_encryption_iv?: string | null
+          meta_encryption_version?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -55,6 +61,9 @@ export interface Database {
           full_name?: string | null
           avatar_url?: string | null
           meta_pixel_id?: string | null
+          meta_encrypted_access_token?: string | null
+          meta_encryption_iv?: string | null
+          meta_encryption_version?: number | null
           created_at?: string
           updated_at?: string
         }
