@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { createServerClient } from "@/lib/supabase/server"
 import { ensureUserExists } from "@/lib/supabase/ensure-user"
 import { QRCodeService } from "@/lib/services/qr-code.service"
-import type { CookieDuration } from "@/lib/supabase/types"
+import type { CookieDuration, TrackingUrlSource } from "@/lib/supabase/types"
 
 const qrCodeService = new QRCodeService()
 
@@ -63,6 +63,41 @@ export async function GET(request: Request) {
 }
 
 /**
+ * Determine the tracking base URL from request or provided value
+ */
+function determineTrackingBaseUrl(
+  request: Request,
+  providedUrl?: string
+): { baseUrl: string; source: TrackingUrlSource } | { error: string } {
+  // If user provided a custom URL, validate and use it
+  if (providedUrl) {
+    try {
+      const url = new URL(providedUrl)
+      return { baseUrl: url.origin, source: "custom" }
+    } catch {
+      return { error: "Invalid tracking base URL format" }
+    }
+  }
+
+  // Extract from request headers
+  const origin = request.headers.get("origin")
+  const host = request.headers.get("host")
+  const forwardedProto = request.headers.get("x-forwarded-proto")
+
+  if (origin) {
+    return { baseUrl: origin, source: "auto" }
+  }
+
+  if (host) {
+    // Determine protocol: use forwarded proto if available, otherwise infer from host
+    const protocol = forwardedProto || (host.includes("localhost") ? "http" : "https")
+    return { baseUrl: `${protocol}://${host}`, source: "auto" }
+  }
+
+  return { error: "Could not determine tracking URL origin. Please provide tracking_base_url." }
+}
+
+/**
  * POST /api/campaigns
  * Create a new campaign with QR code
  */
@@ -90,6 +125,7 @@ export async function POST(request: Request) {
     destination_url,
     cookie_duration_days = 30,
     custom_tracking_code,
+    tracking_base_url: providedTrackingBaseUrl,
   } = body
 
   // Validate required fields
@@ -118,6 +154,18 @@ export async function POST(request: Request) {
     )
   }
 
+  // Determine tracking base URL
+  const trackingUrlResult = determineTrackingBaseUrl(request, providedTrackingBaseUrl)
+
+  if ("error" in trackingUrlResult) {
+    return NextResponse.json(
+      { error: trackingUrlResult.error },
+      { status: 400 }
+    )
+  }
+
+  const { baseUrl: trackingBaseUrl, source: trackingUrlSource } = trackingUrlResult
+
   try {
     // Generate tracking code
     const trackingCode = qrCodeService.generateTrackingCode(custom_tracking_code)
@@ -136,8 +184,8 @@ export async function POST(request: Request) {
       )
     }
 
-    // Generate QR code
-    const qrResult = await qrCodeService.generateQRCode(trackingCode)
+    // Generate QR code with the determined tracking base URL
+    const qrResult = await qrCodeService.generateQRCode(trackingCode, trackingBaseUrl)
 
     // Insert campaign
     const { data: campaign, error } = await supabase
@@ -149,6 +197,8 @@ export async function POST(request: Request) {
         destination_url,
         tracking_code: trackingCode,
         cookie_duration_days: cookie_duration_days as CookieDuration,
+        tracking_base_url: trackingBaseUrl,
+        tracking_url_source: trackingUrlSource,
         qr_code_svg: qrResult.qrCodeSvg,
         qr_code_data_url: qrResult.qrCodeDataUrl,
         status: "active",

@@ -55,7 +55,10 @@ export function QRCodeGenerator() {
       const response = await fetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          tracking_base_url: window.location.origin,
+        }),
       })
 
       if (response.ok) {
@@ -147,10 +150,11 @@ export function QRCodeGenerator() {
     link.click()
   }
 
-  // Use new /go/ route for tracking URLs
+  // Use stored tracking_base_url or fall back to current origin
   const getTrackingUrl = (campaign: CampaignWithStats) => {
     const code = campaign.slug || campaign.tracking_code
-    return `${window.location.origin}/go/${code}`
+    const baseUrl = campaign.tracking_base_url || window.location.origin
+    return `${baseUrl}/go/${code}`
   }
 
   const getStatusColor = (status: CampaignStatus) => {

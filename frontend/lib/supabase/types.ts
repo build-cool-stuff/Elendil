@@ -15,6 +15,9 @@ export type CookieDuration = 30 | 60 | 90
 // Device types
 export type DeviceType = 'mobile' | 'tablet' | 'desktop'
 
+// Tracking URL source types
+export type TrackingUrlSource = 'auto' | 'custom' | 'migration'
+
 // Conversion types
 export type ConversionType = 'view' | 'click' | 'lead' | 'purchase'
 
@@ -171,6 +174,8 @@ export interface Database {
           bridge_enabled: boolean
           bridge_duration_ms: number
           custom_domain: string | null
+          tracking_base_url: string | null
+          tracking_url_source: TrackingUrlSource | null
           qr_code_svg: string | null
           qr_code_data_url: string | null
           status: CampaignStatus
@@ -189,6 +194,8 @@ export interface Database {
           bridge_enabled?: boolean
           bridge_duration_ms?: number
           custom_domain?: string | null
+          tracking_base_url?: string | null
+          tracking_url_source?: TrackingUrlSource | null
           qr_code_svg?: string | null
           qr_code_data_url?: string | null
           status?: CampaignStatus
@@ -207,6 +214,8 @@ export interface Database {
           bridge_enabled?: boolean
           bridge_duration_ms?: number
           custom_domain?: string | null
+          tracking_base_url?: string | null
+          tracking_url_source?: TrackingUrlSource | null
           qr_code_svg?: string | null
           qr_code_data_url?: string | null
           status?: CampaignStatus

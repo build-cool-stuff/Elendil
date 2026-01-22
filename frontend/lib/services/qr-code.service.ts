@@ -19,15 +19,11 @@ export interface QRCodeOptions {
 
 /**
  * Service for generating QR codes and tracking URLs
+ *
+ * This service is stateless - baseUrl must be provided to methods that need it.
+ * This allows each campaign to have its own tracking base URL.
  */
 export class QRCodeService {
-  private baseUrl: string
-
-  constructor(baseUrl?: string) {
-    // Use environment variable or fall back to localhost for development
-    this.baseUrl = baseUrl || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  }
-
   /**
    * Generate a unique tracking code
    * @param customCode Optional custom code (must be alphanumeric with hyphens, 4-32 chars)
@@ -46,31 +42,28 @@ export class QRCodeService {
 
   /**
    * Build the full tracking URL for a QR code
-   * Uses the new /go/ route structure for Edge-optimized redirects
+   * Uses the /go/ route structure for Edge-optimized redirects
    * @param trackingCode The unique tracking code or slug
-   * @param customDomain Optional custom domain for high-tier users
+   * @param baseUrl The base URL for tracking (e.g., https://example.com)
    */
-  buildTrackingUrl(trackingCode: string, customDomain?: string): string {
-    const baseUrl = customDomain ? `https://${customDomain}` : this.baseUrl
-    return `${baseUrl}/go/${trackingCode}`
-  }
-
-  /**
-   * Build legacy tracking URL (for backwards compatibility)
-   * @deprecated Use buildTrackingUrl instead
-   */
-  buildLegacyTrackingUrl(trackingCode: string): string {
-    return `${this.baseUrl}/q/${trackingCode}`
+  buildTrackingUrl(trackingCode: string, baseUrl: string): string {
+    // Ensure baseUrl doesn't have trailing slash
+    const cleanBaseUrl = baseUrl.replace(/\/$/, '')
+    return `${cleanBaseUrl}/go/${trackingCode}`
   }
 
   /**
    * Generate a QR code for a campaign
+   * @param trackingCode The unique tracking code
+   * @param baseUrl The base URL for tracking (e.g., https://example.com)
+   * @param options Optional QR code customization options
    */
   async generateQRCode(
     trackingCode: string,
+    baseUrl: string,
     options: QRCodeOptions = {}
   ): Promise<QRCodeGenerationResult> {
-    const trackingUrl = this.buildTrackingUrl(trackingCode)
+    const trackingUrl = this.buildTrackingUrl(trackingCode, baseUrl)
 
     const qrOptions = {
       width: options.width || 300,
@@ -101,12 +94,16 @@ export class QRCodeService {
 
   /**
    * Generate a QR code as a buffer (for file downloads)
+   * @param trackingCode The unique tracking code
+   * @param baseUrl The base URL for tracking (e.g., https://example.com)
+   * @param options Optional QR code customization options
    */
   async generateQRCodeBuffer(
     trackingCode: string,
+    baseUrl: string,
     options: QRCodeOptions = {}
   ): Promise<Buffer> {
-    const trackingUrl = this.buildTrackingUrl(trackingCode)
+    const trackingUrl = this.buildTrackingUrl(trackingCode, baseUrl)
 
     const qrOptions = {
       width: options.width || 600, // Higher resolution for downloads
@@ -130,4 +127,5 @@ export class QRCodeService {
 }
 
 // Export a singleton instance for convenience
+// Note: This instance is stateless - baseUrl must be provided to methods
 export const qrCodeService = new QRCodeService()
