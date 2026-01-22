@@ -444,7 +444,7 @@ function SettingsPanel() {
                 <ExternalLink className="h-3 w-3" />
               </a>
               <a
-                href="https://www.youtube.com/watch?v=eTHnJfKzp7E"
+                href="https://www.youtube.com/watch?v=O6_dtwV88OM"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 transition-colors"
@@ -521,7 +521,7 @@ function SettingsPanel() {
                 <ExternalLink className="h-3 w-3" />
               </a>
               <a
-                href="https://www.youtube.com/watch?v=fS5S0pCpY6g"
+                href="https://www.youtube.com/watch?v=NIHt513ta9Y"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 transition-colors"

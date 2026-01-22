@@ -359,10 +359,10 @@ export function QRCodeGenerator() {
           {selectedCampaign ? (
             <div className="space-y-4">
               {/* QR Code Display */}
-              <div className="bg-white rounded-2xl p-6 flex items-center justify-center">
+              <div className="bg-white/10 rounded-2xl p-6 flex items-center justify-center overflow-hidden">
                 {selectedCampaign.qr_code_svg ? (
                   <div
-                    className="w-48 h-48"
+                    className="w-48 h-48 [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:w-full [&>svg]:h-full"
                     dangerouslySetInnerHTML={{ __html: selectedCampaign.qr_code_svg }}
                   />
                 ) : (
