@@ -155,9 +155,14 @@ export function QRCodeGenerator() {
         if (selectedCampaign?.id === campaignId) {
           setSelectedCampaign(null)
         }
+      } else {
+        const data = await response.json().catch(() => ({}))
+        console.error("Delete failed:", response.status, data)
+        alert(data.error || "Failed to delete campaign")
       }
     } catch (error) {
       console.error("Failed to delete campaign:", error)
+      alert("Failed to delete campaign")
     }
   }
 

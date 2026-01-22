@@ -166,7 +166,7 @@ export async function PATCH(
 
 /**
  * DELETE /api/campaigns/[id]
- * Delete (archive) a campaign
+ * Permanently delete a campaign
  */
 export async function DELETE(
   _request: Request,
@@ -188,14 +188,27 @@ export async function DELETE(
   const { id } = await params
   const supabase = createServerClient()
 
-  // Archive the campaign instead of hard delete (preserve data)
+  // Verify campaign belongs to user before deleting
+  const { data: existing } = await supabase
+    .from("campaigns")
+    .select("id")
+    .eq("id", id)
+    .eq("user_id", supabaseUserId)
+    .single()
+
+  if (!existing) {
+    return NextResponse.json({ error: "Campaign not found" }, { status: 404 })
+  }
+
+  // Permanently delete the campaign
   const { error } = await supabase
     .from("campaigns")
-    .update({ status: "archived" as CampaignStatus })
+    .delete()
     .eq("id", id)
     .eq("user_id", supabaseUserId)
 
   if (error) {
+    console.error("Failed to delete campaign:", error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
