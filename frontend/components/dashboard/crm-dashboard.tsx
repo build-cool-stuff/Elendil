@@ -14,6 +14,7 @@ import {
   MapPin,
   Facebook,
   Mail,
+  ExternalLink,
 } from "lucide-react"
 
 type TabId = "qr-code" | "map" | "campaigns" | "settings" | "support"
@@ -432,6 +433,26 @@ function SettingsPanel() {
             <p className="text-white/40 text-sm mt-2">
               Find your Pixel ID in Meta Events Manager under Data Sources. When set, the pixel will fire automatically on every QR code scan.
             </p>
+            <div className="flex items-center gap-4 mt-2">
+              <a
+                href="https://www.facebook.com/business/help/952192354843755"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                How to find your Pixel ID
+                <ExternalLink className="h-3 w-3" />
+              </a>
+              <a
+                href="https://www.youtube.com/watch?v=eTHnJfKzp7E"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                Video tutorial
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
           </div>
 
           {originalPixelId && (
@@ -489,6 +510,26 @@ function SettingsPanel() {
             <p className="text-white/40 text-sm mt-2">
               Adding a CAPI token enables server-side events for more reliable attribution. Keep this token secret.
             </p>
+            <div className="flex items-center gap-4 mt-2">
+              <a
+                href="https://developers.facebook.com/docs/marketing-api/conversions-api/get-started#access-token"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                How to generate a CAPI token
+                <ExternalLink className="h-3 w-3" />
+              </a>
+              <a
+                href="https://www.youtube.com/watch?v=fS5S0pCpY6g"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                Video tutorial
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
             {isCapiTokenSet && (
               <p className="text-green-300/60 text-xs mt-1">CAPI token is set and ready.</p>
             )}
