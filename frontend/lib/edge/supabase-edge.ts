@@ -181,14 +181,16 @@ export async function recordScan(scanData: {
   const supabase = createEdgeClient()
 
   // Fire and forget - don't await
-  supabase
+  void supabase
     .from('scans')
     .insert({
       ...scanData,
       scanned_at: new Date().toISOString(),
     })
-    .then(() => {})
-    .catch((err) => {
-      console.error('[Edge] Failed to record scan:', err)
-    })
+    .then(
+      () => {},
+      (err) => {
+        console.error('[Edge] Failed to record scan:', err)
+      }
+    )
 }
