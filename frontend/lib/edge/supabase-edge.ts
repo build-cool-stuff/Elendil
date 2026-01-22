@@ -1,6 +1,6 @@
 /**
  * Edge-compatible Supabase client
- * Uses service role for public scan recording endpoint
+ * Uses secret key for public scan recording endpoint
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
@@ -8,14 +8,14 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 let edgeClient: SupabaseClient | null = null
 
 /**
- * Creates an Edge-compatible Supabase client using service role credentials.
+ * Creates an Edge-compatible Supabase client using secret key credentials.
  * This client is used for public endpoints (QR scan tracking) where user
  * authentication is not required.
  *
  * Features:
  * - No session persistence (stateless for Edge)
  * - Uses native fetch (Edge-compatible)
- * - Service role bypasses RLS for scan insertion
+ * - Secret key bypasses RLS for scan insertion
  */
 export function createEdgeClient(): SupabaseClient {
   if (edgeClient) {
@@ -23,13 +23,13 @@ export function createEdgeClient(): SupabaseClient {
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const secretKey = process.env.SUPABASE_SECRET_KEY
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Missing Supabase environment variables for Edge client')
+  if (!supabaseUrl || !secretKey) {
+    throw new Error('Missing Supabase environment variables for Edge client: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY')
   }
 
-  edgeClient = createClient(supabaseUrl, serviceRoleKey, {
+  edgeClient = createClient(supabaseUrl, secretKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,

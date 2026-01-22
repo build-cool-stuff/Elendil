@@ -8,7 +8,7 @@
  *   npx tsx scripts/seed-suburbs.ts
  *
  * Prerequisites:
- *   - NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in environment
+ *   - NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY in environment
  *   - Download postcodes data from: https://www.matthewproctor.com/australian_postcodes
  *     or use the embedded sample data for major metros
  */
@@ -18,7 +18,7 @@ import { createClient } from '@supabase/supabase-js'
 // Initialize Supabase client with service role
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SECRET_KEY!
 )
 
 // Sample Australian suburb data for major metropolitan areas
@@ -153,9 +153,9 @@ async function seedSuburbs() {
 }
 
 async function main() {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) {
     console.error('Error: Missing environment variables')
-    console.error('Required: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY')
+    console.error('Required: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SECRET_KEY')
     process.exit(1)
   }
 

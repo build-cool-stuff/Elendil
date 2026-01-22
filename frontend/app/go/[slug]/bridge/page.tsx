@@ -298,7 +298,7 @@ function BridgeContent() {
 
       {/* Subtle branding */}
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 text-white/15 text-xs">
-        Powered by Free Real Estate
+        Powered by Elendil
       </div>
     </div>
   )

@@ -155,9 +155,9 @@ export function QRCodeGenerator() {
 
   const getStatusColor = (status: CampaignStatus) => {
     switch (status) {
-      case "active": return "bg-green-500/20 text-green-400 border-green-400/30"
-      case "paused": return "bg-yellow-500/20 text-yellow-400 border-yellow-400/30"
-      case "archived": return "bg-gray-500/20 text-gray-400 border-gray-400/30"
+      case "active": return "bg-green-500/30 text-green-200"
+      case "paused": return "bg-yellow-500/30 text-yellow-200"
+      case "archived": return "bg-white/20 text-white/60"
     }
   }
 
@@ -270,7 +270,7 @@ export function QRCodeGenerator() {
 
           {isLoading ? (
             <div className="text-center py-8">
-              <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
+              <div className="w-8 h-8 border-2 border-white/20 border-t-white/70 rounded-full animate-spin mx-auto" />
               <p className="text-white/60 mt-2">Loading campaigns...</p>
             </div>
           ) : campaigns.length === 0 ? (
@@ -285,10 +285,10 @@ export function QRCodeGenerator() {
                 <div
                   key={campaign.id}
                   onClick={() => setSelectedCampaign(campaign)}
-                  className={`p-4 rounded-xl border cursor-pointer transition-all duration-200 ${
+                  className={`p-4 rounded-xl cursor-pointer transition-all duration-200 ${
                     selectedCampaign?.id === campaign.id
-                      ? "bg-white/15 border-white/30"
-                      : "bg-white/5 border-white/10 hover:bg-white/10"
+                      ? "bg-white/15"
+                      : "bg-white/5 hover:bg-white/10"
                   }`}
                 >
                   <div className="flex items-start justify-between">
@@ -400,11 +400,11 @@ export function QRCodeGenerator() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="bg-white/5 rounded-lg p-3">
+                  <div className="bg-white/10 rounded-xl p-4">
                     <p className="text-white/60">Attribution Window</p>
                     <p className="text-white font-medium">{selectedCampaign.cookie_duration_days} days</p>
                   </div>
-                  <div className="bg-white/5 rounded-lg p-3">
+                  <div className="bg-white/10 rounded-xl p-4">
                     <p className="text-white/60">Destination</p>
                     <p className="text-white font-medium truncate">{selectedCampaign.destination_url}</p>
                   </div>

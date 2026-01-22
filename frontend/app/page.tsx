@@ -222,9 +222,9 @@ export default function Home() {
           className="flex items-center gap-2 transition-transform hover:scale-105"
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-foreground/15 backdrop-blur-md transition-all duration-300 hover:scale-110 hover:bg-foreground/25">
-            <span className="font-sans text-xl font-bold text-foreground">F</span>
+            <span className="font-sans text-xl font-bold text-foreground">E</span>
           </div>
-          <span className="font-sans text-xl font-semibold tracking-tight text-foreground">Free Real Estate</span>
+          <span className="font-sans text-xl font-semibold tracking-tight text-foreground">Elendil</span>
         </button>
 
         <div className="hidden items-center gap-8 md:flex">

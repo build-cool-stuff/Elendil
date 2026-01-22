@@ -16,10 +16,17 @@ export async function ensureUserExists(): Promise<string | null> {
   const clerkUser = await currentUser()
 
   if (!clerkUser) {
+    console.error("[ensureUserExists] No Clerk user found - user not authenticated")
     return null
   }
 
-  const supabase = createServerClient()
+  let supabase
+  try {
+    supabase = createServerClient()
+  } catch (err) {
+    console.error("[ensureUserExists] Failed to create Supabase client:", err)
+    return null
+  }
 
   // Try to find existing user
   const { data: existingUser, error: selectError } = await supabase
@@ -71,7 +78,18 @@ export async function ensureUserExists(): Promise<string | null> {
           .single()
         return racedUser?.id || null
       }
-      console.error("[ensureUserExists] Failed to create user:", insertError)
+      // Log detailed error for debugging - RLS violations indicate wrong Supabase key
+      console.error("[ensureUserExists] Failed to create user:", {
+        code: insertError.code,
+        message: insertError.message,
+        details: insertError.details,
+        hint: insertError.hint,
+        clerkId: clerkUser.id,
+        // Check if this looks like an RLS error
+        possibleCause: insertError.message?.includes("row-level security")
+          ? "SUPABASE_SECRET_KEY may be missing or set to publishable key instead of secret key"
+          : undefined
+      })
       return null
     }
 
@@ -79,7 +97,13 @@ export async function ensureUserExists(): Promise<string | null> {
     return newUser.id
   }
 
-  // Some other error occurred
-  console.error("[ensureUserExists] Failed to query user:", selectError)
+  // Some other error occurred during SELECT
+  console.error("[ensureUserExists] Failed to query user:", {
+    code: selectError?.code,
+    message: selectError?.message,
+    details: selectError?.details,
+    hint: selectError?.hint,
+    clerkId: clerkUser.id,
+  })
   return null
 }

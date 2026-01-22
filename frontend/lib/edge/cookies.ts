@@ -91,7 +91,7 @@ export function buildSetCookieHeader(
 }
 
 /**
- * Cookie names used by Free Real Estate
+ * Cookie names used by Elendil
  */
 export const COOKIE_NAMES = {
   VISITOR_ID: '_fre_visitor',

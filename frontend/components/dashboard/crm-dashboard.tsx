@@ -13,9 +13,10 @@ import {
   QrCode,
   MapPin,
   Facebook,
+  Mail,
 } from "lucide-react"
 
-type TabId = "qr-code" | "map" | "campaigns" | "settings"
+type TabId = "qr-code" | "map" | "campaigns" | "settings" | "support"
 
 export function CRMDashboard() {
   const [activeTab, setActiveTab] = useState<TabId>("qr-code")
@@ -72,7 +73,9 @@ export function CRMDashboard() {
       case "campaigns":
         return <CampaignsPlaceholder />
       case "settings":
-        return <SettingsPlaceholder />
+        return <SettingsPanel />
+      case "support":
+        return <SupportPanel />
       default:
         return <QRCodeGenerator />
     }
@@ -130,23 +133,25 @@ export function CRMDashboard() {
           <div className="space-y-6">
             {/* Logo */}
             <div className="text-center">
-              <h1 className="text-2xl font-bold text-white">Free Real Estate</h1>
+              <h1 className="text-2xl font-bold text-white">Elendil</h1>
               <p className="text-white/60 text-sm">QR Tracking Platform</p>
             </div>
 
             {/* Main Navigation */}
             <div>
-              <h4 className="text-white/80 text-sm font-semibold uppercase tracking-wider mb-3">Main Menu</h4>
-              <nav className="space-y-2">
+              <h4 className="text-white/60 text-xs font-medium uppercase tracking-wider mb-3 pl-3">Main Menu</h4>
+              <nav className="flex flex-col gap-1">
                 {navItems.map((item) => (
                   <Button
                     key={item.id}
                     variant={activeTab === item.id ? "glass-active" : "glass"}
-                    className="w-full justify-start text-base h-11"
+                    className="w-full h-11 px-3 flex items-center justify-start"
                     onClick={() => setActiveTab(item.id)}
                   >
-                    <item.icon className="mr-3 h-5 w-5" />
-                    {item.label}
+                    <span className="w-6 flex items-center justify-center shrink-0">
+                      <item.icon className="h-5 w-5" />
+                    </span>
+                    <span className="ml-3 text-sm font-medium">{item.label}</span>
                   </Button>
                 ))}
               </nav>
@@ -154,30 +159,37 @@ export function CRMDashboard() {
 
             {/* Administration */}
             <div>
-              <h4 className="text-white/80 text-sm font-semibold uppercase tracking-wider mb-3">Administration</h4>
-              <nav className="space-y-2">
+              <h4 className="text-white/60 text-xs font-medium uppercase tracking-wider mb-3 pl-3">Administration</h4>
+              <nav className="flex flex-col gap-1">
                 <Button
                   variant={activeTab === "settings" ? "glass-active" : "glass"}
-                  className="w-full justify-start text-base h-11"
+                  className="w-full h-11 px-3 flex items-center justify-start"
                   onClick={() => setActiveTab("settings")}
                 >
-                  <Settings className="mr-3 h-5 w-5" />
-                  Settings
+                  <span className="w-6 flex items-center justify-center shrink-0">
+                    <Settings className="h-5 w-5" />
+                  </span>
+                  <span className="ml-3 text-sm font-medium">Settings</span>
                 </Button>
                 <Button
-                  variant="glass"
-                  className="w-full justify-start text-base h-11"
+                  variant={activeTab === "support" ? "glass-active" : "glass"}
+                  className="w-full h-11 px-3 flex items-center justify-start"
+                  onClick={() => setActiveTab("support")}
                 >
-                  <HelpCircle className="mr-3 h-5 w-5" />
-                  Support
+                  <span className="w-6 flex items-center justify-center shrink-0">
+                    <HelpCircle className="h-5 w-5" />
+                  </span>
+                  <span className="ml-3 text-sm font-medium">Support</span>
                 </Button>
                 <Button
                   variant="glass"
-                  className="w-full justify-start text-base h-11"
+                  className="w-full h-11 px-3 flex items-center justify-start"
                   onClick={handleLogout}
                 >
-                  <LogOut className="mr-3 h-5 w-5" />
-                  Logout
+                  <span className="w-6 flex items-center justify-center shrink-0">
+                    <LogOut className="h-5 w-5" />
+                  </span>
+                  <span className="ml-3 text-sm font-medium">Logout</span>
                 </Button>
               </nav>
             </div>
@@ -198,13 +210,13 @@ function MapPlaceholder() {
   return (
     <Card variant="glass" className="p-6">
       <div className="text-center py-16">
-        <MapPin className="w-16 h-16 text-white/30 mx-auto mb-4" />
+        <MapPin className="w-16 h-16 text-white/40 mx-auto mb-4" />
         <h2 className="text-2xl font-bold text-white mb-2">Heat Map</h2>
         <p className="text-white/60 max-w-md mx-auto">
           Visualize where your QR codes are being scanned with an interactive heat map.
           This feature will show scan locations by suburb.
         </p>
-        <span className="inline-block mt-4 bg-blue-500/20 text-blue-400 border border-blue-400/30 px-3 py-1 rounded-full text-sm">
+        <span className="inline-block mt-4 bg-blue-500/20 text-blue-300 px-4 py-1.5 rounded-full text-sm font-medium">
           Coming Soon
         </span>
       </div>
@@ -216,13 +228,13 @@ function CampaignsPlaceholder() {
   return (
     <Card variant="glass" className="p-6">
       <div className="text-center py-16">
-        <Facebook className="w-16 h-16 text-white/30 mx-auto mb-4" />
+        <Facebook className="w-16 h-16 text-white/40 mx-auto mb-4" />
         <h2 className="text-2xl font-bold text-white mb-2">Meta Campaigns</h2>
         <p className="text-white/60 max-w-md mx-auto">
           Connect your Meta (Facebook/Instagram) ad account to track attribution
           between QR code scans and ad conversions.
         </p>
-        <span className="inline-block mt-4 bg-blue-500/20 text-blue-400 border border-blue-400/30 px-3 py-1 rounded-full text-sm">
+        <span className="inline-block mt-4 bg-blue-500/20 text-blue-300 px-4 py-1.5 rounded-full text-sm font-medium">
           Coming Soon
         </span>
       </div>
@@ -230,20 +242,139 @@ function CampaignsPlaceholder() {
   )
 }
 
-function SettingsPlaceholder() {
+function SettingsPanel() {
+  const [glassOpacity, setGlassOpacity] = useState(25)
+
+  // Update CSS custom properties in real-time
+  const updateGlassOpacity = (value: number) => {
+    setGlassOpacity(value)
+    document.documentElement.style.setProperty('--glass-opacity', (value / 100).toString())
+  }
+
   return (
-    <Card variant="glass" className="p-6">
-      <div className="text-center py-16">
-        <Settings className="w-16 h-16 text-white/30 mx-auto mb-4" />
+    <div className="space-y-6">
+      <Card variant="glass" className="p-6">
         <h2 className="text-2xl font-bold text-white mb-2">Settings</h2>
-        <p className="text-white/60 max-w-md mx-auto">
-          Configure your account settings, connect Meta integration,
-          and manage your subscription.
+        <p className="text-white/60">Customize your dashboard appearance and preferences.</p>
+      </Card>
+
+      <Card variant="glass" className="p-6">
+        <h3 className="text-xl font-semibold text-white mb-6">Appearance</h3>
+
+        {/* Glass Opacity Slider */}
+        <div>
+          <div className="flex justify-between items-center mb-3">
+            <label className="text-white/80 font-medium">Glass Opacity</label>
+            <span className="text-white/60 text-sm bg-white/10 px-3 py-1 rounded-lg">{glassOpacity}%</span>
+          </div>
+          <input
+            type="range"
+            min="5"
+            max="60"
+            value={glassOpacity}
+            onChange={(e) => updateGlassOpacity(Number(e.target.value))}
+            className="w-full h-2 bg-white/20 rounded-full appearance-none cursor-pointer
+              [&::-webkit-slider-thumb]:appearance-none
+              [&::-webkit-slider-thumb]:w-5
+              [&::-webkit-slider-thumb]:h-5
+              [&::-webkit-slider-thumb]:rounded-full
+              [&::-webkit-slider-thumb]:bg-white
+              [&::-webkit-slider-thumb]:shadow-lg
+              [&::-webkit-slider-thumb]:cursor-pointer
+              [&::-moz-range-thumb]:w-5
+              [&::-moz-range-thumb]:h-5
+              [&::-moz-range-thumb]:rounded-full
+              [&::-moz-range-thumb]:bg-white
+              [&::-moz-range-thumb]:border-0
+              [&::-moz-range-thumb]:cursor-pointer"
+          />
+          <p className="text-white/40 text-sm mt-2">Controls how opaque the frosted glass panels appear.</p>
+        </div>
+      </Card>
+
+      <Card variant="glass" className="p-6">
+        <h3 className="text-xl font-semibold text-white mb-4">Account</h3>
+        <p className="text-white/60 mb-4">Manage your account settings and integrations.</p>
+        <div className="space-y-3">
+          <div className="bg-white/10 rounded-xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-white font-medium">Meta Integration</p>
+              <p className="text-white/50 text-sm">Connect your Meta ad account</p>
+            </div>
+            <span className="bg-white/20 text-white/60 px-3 py-1 rounded-full text-sm">Coming Soon</span>
+          </div>
+          <div className="bg-white/10 rounded-xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-white font-medium">Custom Domain</p>
+              <p className="text-white/50 text-sm">Use your own domain for QR tracking</p>
+            </div>
+            <span className="bg-white/20 text-white/60 px-3 py-1 rounded-full text-sm">Coming Soon</span>
+          </div>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+function SupportPanel() {
+  return (
+    <div className="space-y-6">
+      <Card variant="glass" className="p-6">
+        <div className="text-center py-8">
+          <Mail className="w-14 h-14 text-white/50 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-white mb-3">Talk Directly to the Founder</h2>
+          <p className="text-white/70 max-w-lg mx-auto mb-6 leading-relaxed">
+            You're not just a user - you're one of our first customers, and that means everything to us.
+            I personally read and respond to every single message. No support tickets, no chatbots, just a real conversation.
+          </p>
+          <a
+            href="mailto:toanandvarghese@outlook.com?subject=Elendil Support"
+            className="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-6 py-3 rounded-xl transition-all duration-200 font-medium"
+          >
+            <Mail className="h-5 w-5" />
+            toanandvarghese@outlook.com
+          </a>
+        </div>
+      </Card>
+
+      <Card variant="glass" className="p-6">
+        <h3 className="text-xl font-semibold text-white mb-4">What to Expect</h3>
+        <div className="space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+              <span className="text-green-400 text-lg">⚡</span>
+            </div>
+            <div>
+              <p className="text-white font-medium">24-Hour Response Time</p>
+              <p className="text-white/60 text-sm">I'll get back to you within 24 hours, usually much faster.</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+              <span className="text-blue-400 text-lg">💬</span>
+            </div>
+            <div>
+              <p className="text-white font-medium">Real Conversations</p>
+              <p className="text-white/60 text-sm">No canned responses. I want to understand your needs and help you succeed.</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
+              <span className="text-purple-400 text-lg">🚀</span>
+            </div>
+            <div>
+              <p className="text-white font-medium">Your Feedback Shapes the Product</p>
+              <p className="text-white/60 text-sm">As an early user, your input directly influences what we build next.</p>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <Card variant="glass" className="p-6">
+        <p className="text-white/50 text-sm text-center italic">
+          "The best thing about being small is you can provide a level of service no big company can." - Y Combinator
         </p>
-        <span className="inline-block mt-4 bg-blue-500/20 text-blue-400 border border-blue-400/30 px-3 py-1 rounded-full text-sm">
-          Coming Soon
-        </span>
-      </div>
-    </Card>
+      </Card>
+    </div>
   )
 }

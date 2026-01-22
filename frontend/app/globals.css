@@ -145,6 +145,47 @@
   }
 }
 
+/* Glass Card CSS Variables - can be adjusted in real-time */
+:root {
+  --glass-opacity: 0.25;
+  --glass-blur: 40px;
+  --glass-saturation: 180%;
+}
+
+/* Glass Card Styles - Explicit CSS to ensure backdrop-filter works */
+/* Using both data-attribute selectors and a fallback class */
+[data-slot="card"][data-variant="glass"],
+[data-slot="card"][data-variant="glass-hover"],
+[data-slot="card"][data-variant="glass-elevated"],
+.glass-card {
+  background: rgba(255, 255, 255, var(--glass-opacity)) !important;
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation)) !important;
+  border-radius: 28px !important;
+  border: none !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+  /* Ensure the element creates a stacking context for backdrop-filter */
+  isolation: isolate;
+  position: relative;
+}
+
+[data-slot="card"][data-variant="glass-elevated"],
+.glass-card-elevated {
+  background: rgba(255, 255, 255, calc(var(--glass-opacity) + 0.05)) !important;
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.15),
+    inset 0 2px 0 rgba(255, 255, 255, 0.4) !important;
+}
+
+[data-slot="card"][data-variant="glass-hover"]:hover {
+  background: rgba(255, 255, 255, calc(var(--glass-opacity) + 0.05)) !important;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
+}
+
 /* Clerk Glassmorphic Overrides - matching shared-components Card glass variant */
 .cl-rootBox {
   width: 100% !important;

@@ -4,18 +4,18 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "../../lib/utils"
 
 const cardVariants = cva(
-  "flex flex-col gap-6 rounded-xl py-6 shadow-sm",
+  "flex flex-col gap-6 py-6",
   {
     variants: {
       variant: {
-        default: "bg-card text-card-foreground border",
-        // Glassmorphic card variants
+        default: "bg-card text-card-foreground border rounded-xl shadow-sm",
+        // Glassmorphic card variants - CSS class triggers explicit styles in globals.css
         glass:
-          "backdrop-blur-xl bg-white/25 border border-white/35 rounded-3xl text-white",
+          "glass-card text-white",
         "glass-hover":
-          "backdrop-blur-xl bg-white/25 border border-white/35 rounded-3xl text-white transition-all duration-700 ease-out hover:scale-[1.02] hover:bg-white/15",
+          "glass-card text-white transition-all duration-300 ease-out",
         "glass-elevated":
-          "backdrop-blur-xl bg-white/18 border border-white/30 rounded-[28px] text-white shadow-[0_32px_80px_rgba(0,0,0,0.3),0_16px_64px_rgba(255,255,255,0.15),inset_0_3px_0_rgba(255,255,255,0.5),inset_0_-1px_0_rgba(255,255,255,0.25)] transition-transform duration-300 hover:-translate-y-1",
+          "glass-card glass-card-elevated text-white transition-transform duration-300 hover:-translate-y-1",
       },
     },
     defaultVariants: {

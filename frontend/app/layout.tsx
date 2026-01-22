@@ -12,7 +12,7 @@ const figtree = Figtree({
 })
 
 export const metadata: Metadata = {
-  title: "Free Real Estate",
+  title: "Elendil",
   description: "QR Tracking Platform for Real Estate Professionals",
 }
 

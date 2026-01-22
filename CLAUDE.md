@@ -212,10 +212,11 @@ npx tsx scripts/seed-suburbs.ts
 ## Environment Variables
 
 ```env
-# Supabase
+# Supabase (New API Keys - replaces legacy anon/service_role JWT keys)
+# See: https://supabase.com/docs/guides/api/api-keys
 NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxx
-SUPABASE_SERVICE_ROLE_KEY=sb_secret_xxx
+SUPABASE_SECRET_KEY=sb_secret_xxx
 
 # Clerk
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxx
