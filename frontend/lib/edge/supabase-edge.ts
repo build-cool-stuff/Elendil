@@ -78,34 +78,45 @@ export async function lookupCampaign(
   const supabase = createEdgeClient()
   const normalizedCode = slugOrCode.toLowerCase()
 
-  const { data, error } = await supabase
-    .from('campaigns')
-    .select(`
-      id,
-      name,
-      destination_url,
-      tracking_code,
-      slug,
-      cookie_duration_days,
-      bridge_enabled,
-      bridge_duration_ms,
-      custom_domain,
-      status,
-      user_id,
-      users (
-        meta_pixel_id,
-        meta_integrations (
-          pixel_id,
-          access_token,
-          encrypted_access_token,
-          encryption_iv,
-          status
+  const buildBaseQuery = () =>
+    supabase
+      .from('campaigns')
+      .select(`
+        id,
+        name,
+        destination_url,
+        tracking_code,
+        slug,
+        cookie_duration_days,
+        bridge_enabled,
+        bridge_duration_ms,
+        custom_domain,
+        status,
+        user_id,
+        users (
+          meta_pixel_id,
+          meta_integrations (
+            pixel_id,
+            access_token,
+            encrypted_access_token,
+            encryption_iv,
+            status
+          )
         )
-      )
-    `)
-    .or(`slug.eq.${normalizedCode},tracking_code.eq.${normalizedCode}`)
-    .eq('status', 'active')
-    .single()
+      `)
+      .eq('status', 'active')
+
+  // First try exact match (preserves case for legacy codes)
+  let { data, error } = await buildBaseQuery()
+    .or(`slug.eq.${slugOrCode},tracking_code.eq.${slugOrCode}`)
+    .maybeSingle()
+
+  // Fallback to lowercase match for normalized codes
+  if (!data && normalizedCode !== slugOrCode) {
+    ;({ data, error } = await buildBaseQuery()
+      .or(`slug.eq.${normalizedCode},tracking_code.eq.${normalizedCode}`)
+      .maybeSingle())
+  }
 
   if (error) {
     console.error('[Edge] Campaign lookup error:', error.message, { slug: slugOrCode })

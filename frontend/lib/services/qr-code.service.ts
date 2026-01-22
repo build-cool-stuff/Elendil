@@ -37,7 +37,7 @@ export class QRCodeService {
       return customCode.toLowerCase()
     }
     // Generate an 8-character unique code
-    return nanoid(8)
+    return nanoid(8).toLowerCase()
   }
 
   /**

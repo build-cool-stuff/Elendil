@@ -33,19 +33,26 @@ export async function GET(
   try {
     const db = getSupabase()
 
-    // Fetch campaign by tracking code
-    const { data: campaign, error } = await db
-      .from("campaigns")
-      .select(`
-        id,
-        name,
-        destination_url,
-        cookie_duration_days,
-        user_id
-      `)
-      .eq("tracking_code", code.toLowerCase())
-      .eq("status", "active")
-      .single()
+    const normalizedCode = code.toLowerCase()
+    const buildQuery = (value: string) =>
+      db
+        .from("campaigns")
+        .select(`
+          id,
+          name,
+          destination_url,
+          cookie_duration_days,
+          user_id
+        `)
+        .eq("tracking_code", value)
+        .eq("status", "active")
+        .maybeSingle()
+
+    // Fetch campaign by tracking code (exact match first, then lowercase fallback)
+    let { data: campaign, error } = await buildQuery(code)
+    if (!campaign && normalizedCode !== code) {
+      ;({ data: campaign, error } = await buildQuery(normalizedCode))
+    }
 
     if (error || !campaign) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 })
