@@ -63,7 +63,7 @@ export async function encrypt(plaintext: string): Promise<EncryptedData> {
 
   return {
     ciphertext: arrayBufferToBase64(ciphertextBuffer),
-    iv: arrayBufferToBase64(iv),
+    iv: arrayBufferToBase64(iv.buffer),
     version: 1,
   }
 }
