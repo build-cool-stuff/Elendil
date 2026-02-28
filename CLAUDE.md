@@ -1,8 +1,8 @@
-# Project Spec: Enterprise QR Tracking & Suburb Analytics
+# Project Spec: Free Real Estate (Elendil)
 
 ## Project Vision
 
-A robust, scalable QR tracking SaaS that prioritizes data precision (suburb-level) and domain reputation safety via sandboxing.
+A QR tracking & suburb analytics SaaS for **Australian real estate agents**. Prioritizes suburb-level geo precision via BigDataCloud and Meta CAPI attribution for ad performance tracking.
 
 ---
 
@@ -25,10 +25,12 @@ A robust, scalable QR tracking SaaS that prioritizes data precision (suburb-leve
 ## Architecture Guidelines
 
 ### 1. Unified App Structure
-- All features live in one Next.js project
-- Route Groups: `(marketing)` for public, `(dashboard)` for protected
-- Server Actions for database mutations
-- Edge Functions for tracking endpoints
+- Monorepo: `frontend/` (Next.js app), `shared-components/` (Radix UI lib), `supabase/` (migrations)
+- All features live in one Next.js project under `frontend/`
+- No route groups used — flat structure with Clerk middleware for auth
+- Public routes: `/`, `/login`, `/signup`, `/go/[slug]`, `/go/[slug]/bridge`
+- Protected routes: `/dashboard`, `/api/campaigns`, `/api/user/settings`
+- Edge Functions for all tracking endpoints (`/go/` routes)
 
 ### 2. The Bridge (Redirect Logic)
 
@@ -165,8 +167,18 @@ export const runtime = 'edge'
 ### Protected (Auth Required)
 | Route | Runtime | Purpose |
 |-------|---------|---------|
-| `/api/campaigns` | Node | Campaign CRUD |
-| `/api/campaigns/[id]` | Node | Single campaign ops |
+| `/api/campaigns` | Node | Campaign CRUD (GET list, POST create) |
+| `/api/campaigns/[id]` | Node | Single campaign (GET with stats, PATCH update) |
+| `/api/user/settings` | Node | User profile settings |
+
+### Pages
+| Route | Type | Purpose |
+|-------|------|---------|
+| `/` | Client Component | Landing page (glassmorphic, WebGL shaders) |
+| `/login` | Client Component | Clerk sign-in UI |
+| `/signup` | Client Component | Clerk sign-up UI |
+| `/dashboard` | Server Component | Main dashboard (campaigns, QR gen, settings) |
+| `/go/[slug]/bridge` | Client Component | Notice-only tracking bridge page |
 
 ---
 
@@ -261,8 +273,10 @@ The bridge page uses a **notice-only** approach for minimal friction:
 6. Fallback timer ensures redirect after `bridge_duration_ms` regardless of tracking status
 
 **Key Files:**
-- `app/go/[slug]/page.tsx` - Notice-only bridge UI
-- `app/api/go/[slug]/track/route.ts` - Precision tracking endpoint
+- `app/go/[slug]/route.ts` - Edge redirect handler (decides bridge vs direct)
+- `app/go/[slug]/bridge/page.tsx` - Notice-only bridge UI (client component)
+- `app/api/go/[slug]/route.ts` - GET campaign data for bridge
+- `app/api/go/[slug]/track/route.ts` - POST precision tracking endpoint
 - `lib/edge/bigdatacloud.ts` - BigDataCloud API client
 
 ---
@@ -278,3 +292,102 @@ The bridge page uses a **notice-only** approach for minimal friction:
 | `cookies.ts` | Cookie utilities for Edge Response |
 | `encryption.ts` | AES-256-GCM encryption |
 | `meta-capi.ts` | Meta Conversions API client |
+| `index.ts` | Re-exports all edge utilities |
+
+---
+
+## Project Structure
+
+```
+frontend/
+├── app/
+│   ├── layout.tsx              # Root layout (Clerk + Meta Pixel)
+│   ├── page.tsx                # Landing page
+│   ├── dashboard/page.tsx      # Protected dashboard
+│   ├── login/[[...sign-in]]/   # Clerk sign-in
+│   ├── signup/[[...sign-up]]/  # Clerk sign-up
+│   ├── go/[slug]/
+│   │   ├── route.ts            # Edge QR redirect handler
+│   │   └── bridge/page.tsx     # Bridge tracking page
+│   ├── q/[code]/               # Legacy QR redirect (deprecated)
+│   └── api/                    # API routes (see API Routes section)
+├── components/
+│   ├── dashboard/
+│   │   ├── crm-dashboard.tsx   # Main dashboard shell (tabs, WebGL bg)
+│   │   └── qr-code-generator.tsx # Campaign creation + QR list
+│   ├── landing/                # Landing page sections
+│   ├── custom-cursor.tsx       # Custom mouse cursor effect
+│   ├── grain-overlay.tsx       # Grain texture overlay
+│   └── magnetic-button.tsx     # Magnetic follow button
+├── lib/
+│   ├── edge/                   # Edge Runtime utilities (see table above)
+│   ├── supabase/
+│   │   ├── client.ts           # Authenticated Supabase client
+│   │   ├── server.ts           # Server-side Supabase client
+│   │   ├── ensure-user.ts      # Clerk → Supabase user sync
+│   │   └── types.ts            # TypeScript types
+│   ├── services/
+│   │   └── qr-code.service.ts  # QR code generation (nanoid + qrcode lib)
+│   └── utils.ts                # Shared utilities
+├── hooks/use-reveal.ts         # Intersection observer hook
+├── middleware.ts               # Clerk auth middleware
+└── public/                     # Static assets
+shared-components/              # Radix UI wrapper package
+supabase/migrations/            # 6 SQL migrations (001-006)
+```
+
+---
+
+## Key Dependencies
+
+| Package | Purpose |
+|---------|---------|
+| `next@15` / `react@19` | Framework |
+| `@clerk/nextjs` | Authentication (embedded components) |
+| `@supabase/supabase-js` / `@supabase/ssr` | Database client |
+| `zod` | Validation |
+| `react-hook-form` | Form handling |
+| `recharts` | Charts/analytics |
+| `qrcode` | QR code generation |
+| `nanoid` | Unique ID generation |
+| `shaders` | WebGL shader backgrounds |
+| `sonner` | Toast notifications |
+| `svix` | Clerk webhook verification |
+| `cmdk` | Command palette |
+
+---
+
+## Database Migrations
+
+| Migration | Purpose |
+|-----------|---------|
+| 001 | Core schema: users, campaigns, scans, suburbs, meta_integrations, conversions |
+| 002 | Edge enhancements: slug, bridge config, meta_event_id, scan_aggregates |
+| 003 | BigDataCloud precision geo: locality fields, confidence, VPN/proxy flags, localities table |
+| 004 | Add `meta_pixel_id` to users table (simple setup) |
+| 005 | Add `tracking_base_url` to campaigns (custom domain support) |
+| 006 | Add encrypted Meta CAPI token fields to users table |
+
+---
+
+## Implementation Status
+
+### Built & Working
+- QR code generation (SVG + Data URL) with campaign CRUD
+- Edge Runtime redirect handler (`/go/[slug]`) with bridge page
+- BigDataCloud precision geolocation with Vercel fallback
+- Meta CAPI event firing with deduplication (event_id)
+- AES-256-GCM encryption for Meta tokens
+- Clerk authentication with Supabase user sync (webhook + fallback)
+- Cookie-based visitor tracking (visitor_id, campaign visits)
+- Dashboard with campaign list, status filters, QR download
+- Landing page with WebGL shaders, glassmorphic design
+- Full database schema with RLS policies
+
+### Not Yet Implemented
+- Analytics dashboard (heat maps, time series, geographic filtering)
+- Meta OAuth flow (currently manual pixel ID entry only)
+- Campaign attribution (linking QR scans to Meta ad spend/ROI)
+- Custom domains (CNAME support, SSL)
+- Billing & plans (Stripe)
+- A/B testing, dynamic destinations, webhook integrations

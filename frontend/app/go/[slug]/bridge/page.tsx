@@ -188,11 +188,11 @@ function BridgeContent() {
   // Error state
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center p-8">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white flex items-center justify-center">
             <svg
-              className="w-8 h-8 text-red-400"
+              className="w-8 h-8 text-white"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -206,9 +206,8 @@ function BridgeContent() {
             </svg>
           </div>
           <h1 className="text-xl font-semibold text-white mb-2">
-            Link Unavailable
           </h1>
-          <p className="text-white/60">{error}</p>
+          <p className="text-white">{error}</p>
         </div>
       </div>
     )
@@ -216,20 +215,20 @@ function BridgeContent() {
 
   // Loading state with notice banner
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-white">
       {/* Notice Banner - Transparency requirement satisfied */}
-      <div className="fixed top-0 left-0 right-0 bg-white/5 backdrop-blur-sm border-b border-white/10">
+      <div className="fixed top-0 left-0 right-0 bg-white border-b border-white">
         <div className="max-w-2xl mx-auto px-4 py-2 flex items-center justify-between">
-          <p className="text-white/60 text-xs">
+          <p className="text-white text-xs">
             We use analytics to improve our services.{" "}
-            <span className="text-white/40">
+            <span className="text-white">
               Redirecting automatically...
             </span>
           </p>
           {campaign && (
             <button
               onClick={() => (window.location.href = campaign.destination_url)}
-              className="text-xs text-white/50 hover:text-white/80 underline transition-colors"
+              className="text-xs text-white hover:text-white underline transition-colors"
             >
               Skip
             </button>
@@ -241,8 +240,8 @@ function BridgeContent() {
       <div className="text-center p-8 max-w-sm w-full">
         {/* Loading spinner */}
         <div className="w-16 h-16 mx-auto mb-6 relative">
-          <div className="absolute inset-0 rounded-full border-4 border-white/10" />
-          <div className="absolute inset-0 rounded-full border-4 border-t-white/60 animate-spin" />
+          <div className="absolute inset-0 rounded-full border-4 border-white" />
+          <div className="absolute inset-0 rounded-full border-4 border-t-white animate-spin" />
           {/* Inner checkmark that appears when ready */}
           <div
             className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${
@@ -252,7 +251,7 @@ function BridgeContent() {
             }`}
           >
             <svg
-              className="w-8 h-8 text-green-400"
+              className="w-8 h-8 text-white"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -275,7 +274,7 @@ function BridgeContent() {
         </h1>
 
         {campaign && (
-          <p className="text-white/40 text-sm mb-6 truncate">
+          <p className="text-white text-sm mb-6 truncate">
             {new URL(campaign.destination_url).hostname}
           </p>
         )}
@@ -284,7 +283,7 @@ function BridgeContent() {
         {campaign && (
           <button
             onClick={() => (window.location.href = campaign.destination_url)}
-            className="text-sm text-white/30 hover:text-white/60 transition-colors"
+            className="text-sm text-white hover:text-white transition-colors"
           >
             Click here if not redirected
           </button>
@@ -292,7 +291,7 @@ function BridgeContent() {
       </div>
 
       {/* Subtle branding */}
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 text-white/15 text-xs">
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 text-white text-xs">
         Powered by Elendil
       </div>
     </div>
@@ -303,10 +302,10 @@ export default function BridgePage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+        <div className="min-h-screen flex items-center justify-center bg-white">
           <div className="text-center">
-            <div className="w-12 h-12 mx-auto mb-4 border-4 border-white/20 border-t-white rounded-full animate-spin" />
-            <p className="text-white/60">Loading...</p>
+            <div className="w-12 h-12 mx-auto mb-4 border-4 border-white border-t-white rounded-full animate-spin" />
+            <p className="text-white">Loading...</p>
           </div>
         </div>
       }
