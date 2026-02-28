@@ -97,9 +97,15 @@ export function BillingPanel() {
     )
   }
 
-  // No billing set up yet
-  if (!billing?.billing_active && !billing?.stripe_customer_id) {
+  // No billing set up yet (no Stripe customer created)
+  if (!billing?.stripe_customer_id) {
     return <NoBillingState />
+  }
+
+  // Limbo state: customer exists but no active subscription
+  // (user started checkout but didn't complete, or subscription was canceled)
+  if (!billing.billing_active && !billing.subscription) {
+    return <IncompleteSetupState />
   }
 
   const spendPercentage = Math.min(
@@ -419,6 +425,77 @@ export function BillingPanel() {
           <p className="text-red-300 text-sm">{error}</p>
         </Card>
       )}
+    </div>
+  )
+}
+
+/** Shown when user created a Stripe customer but never completed checkout */
+function IncompleteSetupState() {
+  const [isSetupLoading, setIsSetupLoading] = useState(false)
+  const [setupError, setSetupError] = useState<string | null>(null)
+
+  const handleSetup = async () => {
+    setIsSetupLoading(true)
+    setSetupError(null)
+
+    try {
+      const res = await fetch("/api/billing/setup", { method: "POST" })
+      const data = await res.json()
+      if (res.ok && data.url) {
+        window.location.href = data.url
+      } else {
+        setSetupError(data.error || "Unable to start billing setup. Please contact support.")
+      }
+    } catch {
+      setSetupError("Something went wrong. Please try again.")
+    } finally {
+      setIsSetupLoading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card variant="glass" className="p-6">
+        <h2 className="text-2xl font-bold text-white mb-2">Billing & Usage</h2>
+        <p className="text-white/60">Complete your billing setup to activate premium features.</p>
+      </Card>
+
+      <Card variant="glass" className="p-8">
+        <div className="text-center max-w-md mx-auto">
+          <div className="w-16 h-16 rounded-2xl bg-yellow-500/20 flex items-center justify-center mx-auto mb-6">
+            <AlertTriangle className="h-8 w-8 text-yellow-400" />
+          </div>
+          <h3 className="text-xl font-semibold text-white mb-3">Setup Incomplete</h3>
+          <p className="text-white/60 mb-6 leading-relaxed">
+            Your billing account was created, but the subscription wasn't activated.
+            Click below to complete the checkout process — you'll only be charged for actual QR scans.
+          </p>
+
+          <Button
+            variant="glass"
+            className="h-12 px-8 bg-blue-500/30 hover:bg-blue-500/40 text-white font-medium"
+            onClick={handleSetup}
+            disabled={isSetupLoading}
+          >
+            {isSetupLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Opening Checkout...
+              </>
+            ) : (
+              "Complete Billing Setup"
+            )}
+          </Button>
+
+          {setupError && (
+            <p className="text-red-400 text-sm mt-3">{setupError}</p>
+          )}
+
+          <p className="text-white/40 text-xs mt-4">
+            Metered billing — $20 AUD per scan, billed monthly. No upfront charge.
+          </p>
+        </div>
+      </Card>
     </div>
   )
 }

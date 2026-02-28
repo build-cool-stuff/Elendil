@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Figtree } from "next/font/google"
 import { ClerkProvider } from "@clerk/nextjs"
 import { Analytics } from "@vercel/analytics/next"
+import { Toaster } from "sonner"
 import "./globals.css"
 
 const figtree = Figtree({
@@ -53,6 +54,7 @@ fbq('track', 'PageView');`,
         </head>
         <body className="font-sans">
           {children}
+          <Toaster theme="dark" position="top-right" richColors />
           <Analytics />
         </body>
       </html>
