@@ -10,7 +10,9 @@ import { GrainOverlay } from "@/components/grain-overlay"
 import { Card, Button } from "shared-components"
 import { QRCodeGenerator } from "@/components/dashboard/qr-code-generator"
 import { BillingPanel } from "@/components/dashboard/billing-panel"
+import { BillingWarnings } from "@/components/dashboard/billing-warnings"
 import { useCampaigns } from "@/hooks/use-campaigns"
+import { useEdgeSwipe } from "@/hooks/use-edge-swipe"
 import {
   Settings,
   LogOut,
@@ -35,6 +37,10 @@ export function CRMDashboard() {
   const { campaigns, isLoading: campaignsLoading, mutate: mutateCampaigns } = useCampaigns()
   const searchParams = useSearchParams()
   const [billingKey, setBillingKey] = useState(0)
+
+  // Swipe from left edge to open mobile drawer
+  const openDrawer = useCallback(() => setDrawerOpen(true), [])
+  useEdgeSwipe(openDrawer)
 
   // Handle ?billing=success or ?billing=canceled from Stripe redirect
   useEffect(() => {
@@ -192,6 +198,7 @@ export function CRMDashboard() {
 
         {/* Main Content Area — all tabs stay mounted, hidden via CSS */}
         <div className="flex-1 md:col-span-10 h-0 md:h-screen overflow-y-auto pb-6 min-h-0">
+          <BillingWarnings />
           <div style={{ display: activeTab === "qr-code" ? undefined : "none" }} className="space-y-6">
             <QRCodeGenerator campaigns={campaigns} isLoading={campaignsLoading} mutate={mutateCampaigns} />
           </div>
