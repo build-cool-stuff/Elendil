@@ -38,6 +38,7 @@ function BridgeContent() {
   const searchParams = useSearchParams()
   const params = useParams()
   const eventId = searchParams.get("eid")
+  const isFirstScan = searchParams.get("first") === "1"
   const slug = params.slug as string
   const hasTracked = useRef(false)
   const redirectStartedAt = useRef<number>(0)
@@ -140,6 +141,7 @@ function BridgeContent() {
         keepalive: true,
         body: JSON.stringify({
           event_id: eventId,
+          is_first_scan: isFirstScan,
           referrer: document.referrer || null,
           screen_width: window.screen.width,
           screen_height: window.screen.height,
@@ -160,7 +162,7 @@ function BridgeContent() {
         scanRecorded: true,
       }))
     }
-  }, [campaign, slug, eventId])
+  }, [campaign, slug, eventId, isFirstScan])
 
   // Start tracking when campaign loads
   useEffect(() => {

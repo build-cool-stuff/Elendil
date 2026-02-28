@@ -99,8 +99,12 @@ export async function GET(
   // If bridge is disabled, we fire CAPI here and record scan with basic Vercel geo
   if (campaign.bridge_enabled) {
     // Redirect to bridge page with event context
+    const isBridgeFirstScan = isFirstScan || isFirstCampaignVisit
     const bridgeUrl = new URL(`/go/${slug}/bridge`, request.url)
     bridgeUrl.searchParams.set('eid', eventId)
+    if (isBridgeFirstScan) {
+      bridgeUrl.searchParams.set('first', '1')
+    }
 
     // Use 307 Temporary Redirect to prevent browser caching of the redirect
     const response = NextResponse.redirect(bridgeUrl, { status: 307 })

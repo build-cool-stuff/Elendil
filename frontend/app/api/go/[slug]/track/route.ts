@@ -17,7 +17,6 @@ import { parseUserAgent } from '@/lib/edge/user-agent'
 import {
   getOrCreateVisitorId,
   hasVisitedCampaign,
-  parseCookies,
   calculateCookieExpiry,
 } from '@/lib/edge/cookies'
 import { hashIPAddress, generateEventId } from '@/lib/edge/encryption'
@@ -33,6 +32,7 @@ import {
 
 interface TrackRequest {
   event_id?: string
+  is_first_scan?: boolean
   referrer?: string
   screen_width?: number
   screen_height?: number
@@ -96,9 +96,13 @@ export async function POST(
   }
 
   // 6. Cookie management
-  const { visitorId, isNew: isFirstScan } = getOrCreateVisitorId(cookieHeader)
-  const isFirstCampaignVisit = !hasVisitedCampaign(cookieHeader, campaign.id)
+  const { visitorId } = getOrCreateVisitorId(cookieHeader)
   const cookieExpiry = calculateCookieExpiry(campaign.cookie_duration_days)
+
+  // Use is_first_scan from the redirect handler (passed via bridge page) since
+  // cookies are already set by the time this endpoint is called, making cookie-based
+  // detection unreliable. Fall back to cookie check for direct calls.
+  const isFirstScan = body.is_first_scan ?? !hasVisitedCampaign(cookieHeader, campaign.id)
 
   // 7. Use provided event_id or generate new one
   const eventId = body.event_id || generateEventId()
@@ -188,7 +192,7 @@ export async function POST(
     // Context
     referrer: body.referrer || headers.get('referer'),
     cookie_expires_at: cookieExpiry.toISOString(),
-    is_first_scan: isFirstScan || isFirstCampaignVisit,
+    is_first_scan: isFirstScan,
     meta_event_id: eventId,
     scanned_at: new Date().toISOString(),
   }
@@ -209,7 +213,7 @@ export async function POST(
   })()
 
   // 12. Fire-and-forget: emit billing meter event (only for first scans — repeat visitors aren't billed)
-  const isBillableScan = isFirstScan || isFirstCampaignVisit
+  const isBillableScan = isFirstScan
   if (isBillableScan && campaign.billing_active && campaign.stripe_customer_id) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     void fetch(`${appUrl}/api/billing/emit-usage`, {
