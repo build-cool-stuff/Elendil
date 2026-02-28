@@ -6,6 +6,7 @@ import { Shader, ChromaFlow, Swirl } from "shaders/react"
 import { GrainOverlay } from "@/components/grain-overlay"
 import { Card, Button } from "shared-components"
 import { QRCodeGenerator } from "@/components/dashboard/qr-code-generator"
+import { BillingPanel } from "@/components/dashboard/billing-panel"
 import { useCampaigns } from "@/hooks/use-campaigns"
 import {
   Settings,
@@ -14,11 +15,12 @@ import {
   QrCode,
   MapPin,
   Facebook,
+  CreditCard,
   Mail,
   ExternalLink,
 } from "lucide-react"
 
-type TabId = "qr-code" | "map" | "campaigns" | "settings" | "support"
+type TabId = "qr-code" | "map" | "campaigns" | "billing" | "settings" | "support"
 
 export function CRMDashboard() {
   const [activeTab, setActiveTab] = useState<TabId>("qr-code")
@@ -154,6 +156,16 @@ export function CRMDashboard() {
               <h4 className="text-white/60 text-xs font-medium uppercase tracking-wider mb-3 pl-3">Administration</h4>
               <nav className="flex flex-col gap-1">
                 <Button
+                  variant={activeTab === "billing" ? "glass-active" : "glass"}
+                  className="w-full h-11 px-3 flex items-center justify-start"
+                  onClick={() => setActiveTab("billing")}
+                >
+                  <span className="w-6 flex items-center justify-center shrink-0">
+                    <CreditCard className="h-5 w-5" />
+                  </span>
+                  <span className="ml-3 text-sm font-medium">Billing</span>
+                </Button>
+                <Button
                   variant={activeTab === "settings" ? "glass-active" : "glass"}
                   className="w-full h-11 px-3 flex items-center justify-start"
                   onClick={() => setActiveTab("settings")}
@@ -198,6 +210,9 @@ export function CRMDashboard() {
           </div>
           <div style={{ display: activeTab === "campaigns" ? undefined : "none" }} className="space-y-6">
             <CampaignsPlaceholder />
+          </div>
+          <div style={{ display: activeTab === "billing" ? undefined : "none" }} className="space-y-6">
+            <BillingPanel />
           </div>
           <div style={{ display: activeTab === "settings" ? undefined : "none" }} className="space-y-6">
             <SettingsPanel />
