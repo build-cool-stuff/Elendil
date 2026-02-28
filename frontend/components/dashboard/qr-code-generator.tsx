@@ -189,15 +189,16 @@ export function QRCodeGenerator({ campaigns, isLoading, mutate }: QRCodeGenerato
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card variant="glass" className="p-6">
-        <div className="flex items-center justify-between">
+      <Card variant="glass" className="p-4 md:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-3xl font-bold text-white">QR Code Campaigns</h2>
-            <p className="text-white/60">Create and manage trackable QR codes for your physical ads</p>
+            <h2 className="text-2xl md:text-3xl font-bold text-white">QR Code Campaigns</h2>
+            <p className="text-white/60 text-sm md:text-base">Create and manage trackable QR codes for your physical ads</p>
           </div>
           <Button
             variant="glass-solid"
             onClick={() => setShowCreateForm(!showCreateForm)}
+            className="w-full sm:w-auto"
           >
             <Plus className="mr-2 h-4 w-4" />
             New Campaign
@@ -207,10 +208,10 @@ export function QRCodeGenerator({ campaigns, isLoading, mutate }: QRCodeGenerato
 
       {/* Create Form */}
       {showCreateForm && (
-        <Card variant="glass" className="p-6">
+        <Card variant="glass" className="p-4 md:p-6">
           <h3 className="text-xl font-semibold text-white mb-4">Create New Campaign</h3>
           <form onSubmit={createCampaign} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-white/80 mb-2">
                   Campaign Name *
@@ -288,11 +289,11 @@ export function QRCodeGenerator({ campaigns, isLoading, mutate }: QRCodeGenerato
         </Card>
       )}
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Campaign List */}
-        <Card variant="glass" className="p-6">
+        <Card variant="glass" className="p-4 md:p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-semibold text-white">Your Campaigns</h3>
+            <h3 className="text-lg md:text-xl font-semibold text-white">Your Campaigns</h3>
             <div className="relative flex items-center">
               <div className="absolute left-3 pointer-events-none">
                 <Filter className="h-4 w-4 text-white/50" />
@@ -356,16 +357,16 @@ export function QRCodeGenerator({ campaigns, isLoading, mutate }: QRCodeGenerato
                 <div
                   key={campaign.id}
                   onClick={() => setSelectedCampaign(campaign)}
-                  className={`p-4 rounded-xl cursor-pointer transition-all duration-200 ${
+                  className={`p-3 md:p-4 rounded-xl cursor-pointer transition-all duration-200 ${
                     selectedCampaign?.id === campaign.id
                       ? "bg-white/15"
                       : "bg-white/5 hover:bg-white/10"
                   }`}
                 >
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-medium text-white truncate">{campaign.name}</h4>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-medium text-white truncate max-w-[200px] md:max-w-none">{campaign.name}</h4>
                         <Badge className={getStatusColor(campaign.status)}>
                           {campaign.status}
                         </Badge>
@@ -374,7 +375,7 @@ export function QRCodeGenerator({ campaigns, isLoading, mutate }: QRCodeGenerato
                         {campaign.destination_url}
                       </p>
                     </div>
-                    <div className="flex items-center gap-1 ml-2">
+                    <div className="flex items-center gap-1 shrink-0">
                       {campaign.status === "active" ? (
                         <Button
                           size="icon"
@@ -385,7 +386,7 @@ export function QRCodeGenerator({ campaigns, isLoading, mutate }: QRCodeGenerato
                           }}
                           title="Pause"
                         >
-                          <Pause className="h-5 w-5" />
+                          <Pause className="h-4 w-4 md:h-5 md:w-5" />
                         </Button>
                       ) : campaign.status === "paused" ? (
                         <Button
@@ -397,7 +398,7 @@ export function QRCodeGenerator({ campaigns, isLoading, mutate }: QRCodeGenerato
                           }}
                           title="Activate"
                         >
-                          <Play className="h-5 w-5" />
+                          <Play className="h-4 w-4 md:h-5 md:w-5" />
                         </Button>
                       ) : campaign.status === "archived" ? (
                         <Button
@@ -409,7 +410,7 @@ export function QRCodeGenerator({ campaigns, isLoading, mutate }: QRCodeGenerato
                           }}
                           title="Restore"
                         >
-                          <Play className="h-5 w-5" />
+                          <Play className="h-4 w-4 md:h-5 md:w-5" />
                         </Button>
                       ) : null}
                       {campaign.status !== "archived" && (
@@ -422,7 +423,7 @@ export function QRCodeGenerator({ campaigns, isLoading, mutate }: QRCodeGenerato
                           }}
                           title="Archive"
                         >
-                          <Archive className="h-5 w-5" />
+                          <Archive className="h-4 w-4 md:h-5 md:w-5" />
                         </Button>
                       )}
                       <Button
@@ -435,7 +436,7 @@ export function QRCodeGenerator({ campaigns, isLoading, mutate }: QRCodeGenerato
                         title="Delete permanently"
                         className="hover:bg-red-500/20"
                       >
-                        <Trash2 className="h-5 w-5" />
+                        <Trash2 className="h-4 w-4 md:h-5 md:w-5" />
                       </Button>
                     </div>
                   </div>
@@ -446,20 +447,20 @@ export function QRCodeGenerator({ campaigns, isLoading, mutate }: QRCodeGenerato
         </Card>
 
         {/* QR Code Preview */}
-        <Card variant="glass" className="p-6">
-          <h3 className="text-xl font-semibold text-white mb-4">QR Code Preview</h3>
+        <Card variant="glass" className="p-4 md:p-6">
+          <h3 className="text-lg md:text-xl font-semibold text-white mb-4">QR Code Preview</h3>
 
           {selectedCampaign ? (
             <div className="space-y-4">
               {/* QR Code Display */}
-              <div className="bg-white/10 rounded-2xl p-6 flex items-center justify-center overflow-hidden">
+              <div className="bg-white/10 rounded-2xl p-4 md:p-6 flex items-center justify-center overflow-hidden">
                 {selectedCampaign.qr_code_svg ? (
                   <div
-                    className="w-48 h-48 [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:w-full [&>svg]:h-full"
+                    className="w-40 h-40 md:w-48 md:h-48 [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:w-full [&>svg]:h-full"
                     dangerouslySetInnerHTML={{ __html: selectedCampaign.qr_code_svg }}
                   />
                 ) : (
-                  <div className="w-48 h-48 flex items-center justify-center text-gray-400">
+                  <div className="w-40 h-40 md:w-48 md:h-48 flex items-center justify-center text-gray-400">
                     No QR Code
                   </div>
                 )}
@@ -474,11 +475,12 @@ export function QRCodeGenerator({ campaigns, isLoading, mutate }: QRCodeGenerato
                       variant="glass"
                       readOnly
                       value={getTrackingUrl(selectedCampaign)}
-                      className="text-sm"
+                      className="text-sm min-w-0"
                     />
                     <Button
                       size="icon"
                       variant="glass"
+                      className="shrink-0"
                       onClick={() => copyToClipboard(
                         getTrackingUrl(selectedCampaign),
                         "url"
@@ -489,6 +491,7 @@ export function QRCodeGenerator({ campaigns, isLoading, mutate }: QRCodeGenerato
                     <Button
                       size="icon"
                       variant="glass"
+                      className="shrink-0"
                       onClick={() => window.open(getTrackingUrl(selectedCampaign), "_blank")}
                     >
                       <ExternalLink className="h-4 w-4" />
@@ -496,19 +499,19 @@ export function QRCodeGenerator({ campaigns, isLoading, mutate }: QRCodeGenerato
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="bg-white/10 rounded-xl p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div className="bg-white/10 rounded-xl p-3 md:p-4">
                     <p className="text-white/60">Attribution Window</p>
                     <p className="text-white font-medium">{selectedCampaign.cookie_duration_days} days</p>
                   </div>
-                  <div className="bg-white/10 rounded-xl p-4">
+                  <div className="bg-white/10 rounded-xl p-3 md:p-4">
                     <p className="text-white/60">Destination</p>
                     <p className="text-white font-medium truncate">{selectedCampaign.destination_url}</p>
                   </div>
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-3 pt-2">
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <Button
                     variant="glass-solid"
                     className="flex-1"
