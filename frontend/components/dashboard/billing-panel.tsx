@@ -192,11 +192,11 @@ export function BillingPanel() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card variant="glass" className="p-6">
-        <div className="flex items-center justify-between">
+      <Card variant="glass" className="p-4 md:p-6">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-bold text-white mb-1">Billing & Usage</h2>
-            <p className="text-white/60">Track your QR scan usage and manage your subscription.</p>
+            <h2 className="text-xl md:text-2xl font-bold text-white mb-1">Billing & Usage</h2>
+            <p className="text-white/60 text-sm md:text-base">Track your QR scan usage and manage your subscription.</p>
           </div>
           {getStatusBadge()}
         </div>
@@ -251,8 +251,28 @@ export function BillingPanel() {
         </Card>
       )}
 
-      {/* Hero metrics — 3 column */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Hero metrics — compact strip on mobile, 3 cards on desktop */}
+      <Card variant="glass" className="p-4 md:hidden">
+        <div className="grid grid-cols-3 divide-x divide-white/10">
+          <div className="px-2 first:pl-0 last:pr-0">
+            <p className="text-white/50 text-xs mb-1">Scans</p>
+            <p className="text-xl font-bold text-white">{billing.usage.scan_count.toLocaleString()}</p>
+            <p className="text-white/40 text-xs mt-0.5">{daysRemaining}d left</p>
+          </div>
+          <div className="px-2">
+            <p className="text-white/50 text-xs mb-1">Spend</p>
+            <p className="text-xl font-bold text-white">{formatCurrency(billing.usage.accrued_spend_aud)}</p>
+            <p className="text-white/40 text-xs mt-0.5">{formatCurrency(PRICE_PER_SCAN_AUD)}/scan</p>
+          </div>
+          <div className="px-2 last:pr-0">
+            <p className="text-white/50 text-xs mb-1">Projected</p>
+            <p className="text-xl font-bold text-white">~{formatCurrency(Math.min(projectedSpend, SPEND_CAP_AUD))}</p>
+            <p className="text-white/40 text-xs mt-0.5">~{projectedScans.toLocaleString()} scans</p>
+          </div>
+        </div>
+      </Card>
+
+      <div className="hidden md:grid grid-cols-3 gap-4">
         <Card variant="glass" className="p-6">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
@@ -296,40 +316,39 @@ export function BillingPanel() {
       </div>
 
       {/* Spend cap progress bar */}
-      <Card variant="glass" className="p-6">
+      <Card variant="glass" className="p-4 md:p-6">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-white font-semibold">Spend Cap</h3>
-          <p className="text-white/60 text-sm">
+          <h3 className="text-white font-semibold text-sm md:text-base">Spend Cap</h3>
+          <p className="text-white/60 text-xs md:text-sm">
             {formatCurrency(billing.usage.accrued_spend_aud)} / {formatCurrency(SPEND_CAP_AUD)}
           </p>
         </div>
-        <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
+        <div className="w-full h-2 md:h-3 bg-white/10 rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-500 ${getSpendBarColor()}`}
             style={{ width: `${spendPercentage}%` }}
           />
         </div>
-        <p className="text-white/40 text-sm mt-2">
-          Premium tracking features (Meta Pixel, CAPI, precision geo) pause at {formatCurrency(SPEND_CAP_AUD)}.
-          QR codes continue redirecting normally.
+        <p className="text-white/40 text-xs md:text-sm mt-2">
+          Premium features pause at {formatCurrency(SPEND_CAP_AUD)}. QR codes continue redirecting.
         </p>
       </Card>
 
       {/* Subscription & payment details */}
-      <Card variant="glass" className="p-6">
-        <div className="flex items-center justify-between mb-6">
+      <Card variant="glass" className="p-4 md:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4 md:mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0">
               <Receipt className="h-5 w-5 text-blue-400" />
             </div>
             <div>
-              <h3 className="text-xl font-semibold text-white">Subscription</h3>
-              <p className="text-white/50 text-sm">Manage your plan and payment method</p>
+              <h3 className="text-lg md:text-xl font-semibold text-white">Subscription</h3>
+              <p className="text-white/50 text-xs md:text-sm">Manage your plan and payment method</p>
             </div>
           </div>
           <Button
             variant="glass"
-            className="h-10 px-5 bg-blue-500/20 hover:bg-blue-500/30"
+            className="h-10 px-5 bg-blue-500/20 hover:bg-blue-500/30 w-full sm:w-auto"
             onClick={openStripePortal}
             disabled={isPortalLoading}
           >
@@ -348,24 +367,24 @@ export function BillingPanel() {
         </div>
 
         <div className="space-y-3">
-          <div className="bg-white/5 rounded-xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-white font-medium">Plan</p>
-              <p className="text-white/50 text-sm">Pay-per-scan metered billing</p>
+          <div className="bg-white/5 rounded-xl p-3 md:p-4 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-white font-medium text-sm md:text-base">Plan</p>
+              <p className="text-white/50 text-xs md:text-sm">Pay-per-scan metered billing</p>
             </div>
-            <p className="text-white font-medium">{formatCurrency(PRICE_PER_SCAN_AUD)} / scan</p>
+            <p className="text-white font-medium text-sm md:text-base shrink-0">{formatCurrency(PRICE_PER_SCAN_AUD)}/scan</p>
           </div>
 
           {billing.subscription && (
-            <div className="bg-white/5 rounded-xl p-4 flex items-center justify-between">
+            <div className="bg-white/5 rounded-xl p-3 md:p-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-white font-medium">Current Period</p>
-                <p className="text-white/50 text-sm">
+                <p className="text-white font-medium text-sm md:text-base">Current Period</p>
+                <p className="text-white/50 text-xs md:text-sm">
                   {formatDate(billing.subscription.current_period_start)} — {formatDate(billing.subscription.current_period_end)}
                 </p>
               </div>
               {billing.subscription.cancel_at_period_end && (
-                <span className="bg-yellow-500/20 text-yellow-300 px-3 py-1 rounded-full text-xs font-medium">
+                <span className="bg-yellow-500/20 text-yellow-300 px-3 py-1 rounded-full text-xs font-medium w-fit">
                   Cancels at period end
                 </span>
               )}
@@ -373,14 +392,14 @@ export function BillingPanel() {
           )}
 
           {billing.upcoming_invoice && (
-            <div className="bg-white/5 rounded-xl p-4 flex items-center justify-between">
-              <div>
-                <p className="text-white font-medium">Next Invoice (preview)</p>
-                <p className="text-white/50 text-sm">
-                  Based on usage so far — final amount may differ
+            <div className="bg-white/5 rounded-xl p-3 md:p-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-white font-medium text-sm md:text-base">Next Invoice</p>
+                <p className="text-white/50 text-xs md:text-sm">
+                  Based on usage so far
                 </p>
               </div>
-              <p className="text-white font-medium">
+              <p className="text-white font-medium shrink-0">
                 {new Intl.NumberFormat("en-AU", {
                   style: "currency",
                   currency: billing.upcoming_invoice.currency.toUpperCase(),
@@ -389,41 +408,41 @@ export function BillingPanel() {
             </div>
           )}
 
-          <p className="text-white/40 text-sm pt-2">
-            Update your payment method, download invoices, or cancel your subscription through the Stripe billing portal.
+          <p className="text-white/40 text-xs md:text-sm pt-1">
+            Update payment method, download invoices, or cancel via Stripe portal.
           </p>
         </div>
       </Card>
 
       {/* How it works */}
-      <Card variant="glass" className="p-6">
-        <h3 className="text-xl font-semibold text-white mb-4">How Billing Works</h3>
-        <div className="space-y-4">
-          <div className="flex items-start gap-4">
-            <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
-              <Check className="h-4 w-4 text-emerald-400" />
+      <Card variant="glass" className="p-4 md:p-6">
+        <h3 className="text-lg md:text-xl font-semibold text-white mb-3 md:mb-4">How Billing Works</h3>
+        <div className="space-y-3 md:space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
+              <Check className="h-3 w-3 md:h-4 md:w-4 text-emerald-400" />
             </div>
             <div>
-              <p className="text-white font-medium">Pay only for what you use</p>
-              <p className="text-white/50 text-sm">{formatCurrency(PRICE_PER_SCAN_AUD)} per QR code scan, billed monthly in arrears. No minimum commitment.</p>
+              <p className="text-white font-medium text-sm md:text-base">Pay only for what you use</p>
+              <p className="text-white/50 text-xs md:text-sm">{formatCurrency(PRICE_PER_SCAN_AUD)} per scan, billed monthly. No minimum.</p>
             </div>
           </div>
-          <div className="flex items-start gap-4">
-            <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
-              <Check className="h-4 w-4 text-emerald-400" />
+          <div className="flex items-start gap-3">
+            <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
+              <Check className="h-3 w-3 md:h-4 md:w-4 text-emerald-400" />
             </div>
             <div>
-              <p className="text-white font-medium">Automatic spend cap at {formatCurrency(SPEND_CAP_AUD)}</p>
-              <p className="text-white/50 text-sm">Premium features pause at the cap. QR codes continue working as normal redirects — your scanners are never affected.</p>
+              <p className="text-white font-medium text-sm md:text-base">Spend cap at {formatCurrency(SPEND_CAP_AUD)}</p>
+              <p className="text-white/50 text-xs md:text-sm">Premium features pause at the cap. QR codes keep working.</p>
             </div>
           </div>
-          <div className="flex items-start gap-4">
-            <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
-              <Check className="h-4 w-4 text-emerald-400" />
+          <div className="flex items-start gap-3">
+            <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
+              <Check className="h-3 w-3 md:h-4 md:w-4 text-emerald-400" />
             </div>
             <div>
-              <p className="text-white font-medium">Premium features included</p>
-              <p className="text-white/50 text-sm">Meta Pixel & CAPI integration, suburb-level precision geolocation, and real-time scan tracking in your dashboard.</p>
+              <p className="text-white font-medium text-sm md:text-base">Premium features included</p>
+              <p className="text-white/50 text-xs md:text-sm">Meta Pixel, CAPI, precision geo, and real-time tracking.</p>
             </div>
           </div>
         </div>
@@ -598,18 +617,18 @@ function NoBillingState() {
       </Card>
 
       {/* What you get */}
-      <Card variant="glass" className="p-6">
-        <h3 className="text-xl font-semibold text-white mb-4">What's Included</h3>
-        <div className="grid grid-cols-2 gap-4">
+      <Card variant="glass" className="p-4 md:p-6">
+        <h3 className="text-lg md:text-xl font-semibold text-white mb-4">What's Included</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
           {[
             { title: "Meta Pixel", desc: "Client-side event tracking on every scan" },
             { title: "Conversions API", desc: "Server-side events for reliable attribution" },
             { title: "Precision Geo", desc: "Suburb-level location via BigDataCloud" },
             { title: "Real-time Dashboard", desc: "Live scan analytics and visitor tracking" },
           ].map((feature) => (
-            <div key={feature.title} className="bg-white/5 rounded-xl p-4">
+            <div key={feature.title} className="bg-white/5 rounded-xl p-3 md:p-4">
               <div className="flex items-center gap-2 mb-1">
-                <Check className="h-4 w-4 text-emerald-400" />
+                <Check className="h-4 w-4 text-emerald-400 shrink-0" />
                 <p className="text-white font-medium text-sm">{feature.title}</p>
               </div>
               <p className="text-white/50 text-xs">{feature.desc}</p>
