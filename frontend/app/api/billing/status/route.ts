@@ -31,8 +31,8 @@ export async function GET() {
     return NextResponse.json({ error: 'User not found' }, { status: 404 })
   }
 
-  // Get active subscription
-  const { data: subscription } = await supabase
+  // Get active subscription from DB
+  let { data: subscription } = await supabase
     .from('billing_subscriptions')
     .select('*')
     .eq('user_id', user.id)
@@ -40,6 +40,66 @@ export async function GET() {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+
+  // Self-healing: if customer exists in Stripe but no subscription in DB,
+  // check Stripe directly and sync (handles webhook delivery failures)
+  if (!subscription && user.stripe_customer_id) {
+    try {
+      const stripe = getStripe()
+      const stripeSubs = await stripe.subscriptions.list({
+        customer: user.stripe_customer_id,
+        status: 'active',
+        limit: 1,
+      })
+
+      if (stripeSubs.data.length > 0) {
+        const stripeSub = stripeSubs.data[0]
+        const isActive = ['active', 'trialing'].includes(stripeSub.status)
+
+        // Sync subscription to DB
+        const subRecord = {
+          user_id: user.id,
+          stripe_subscription_id: stripeSub.id,
+          stripe_price_id: stripeSub.items.data[0]?.price?.id || null,
+          status: stripeSub.status,
+          current_period_start: new Date(stripeSub.current_period_start * 1000).toISOString(),
+          current_period_end: new Date(stripeSub.current_period_end * 1000).toISOString(),
+          cancel_at_period_end: stripeSub.cancel_at_period_end,
+          canceled_at: stripeSub.canceled_at
+            ? new Date(stripeSub.canceled_at * 1000).toISOString()
+            : null,
+          ended_at: stripeSub.ended_at
+            ? new Date(stripeSub.ended_at * 1000).toISOString()
+            : null,
+          updated_at: new Date().toISOString(),
+        }
+
+        await supabase
+          .from('billing_subscriptions')
+          .upsert(subRecord, { onConflict: 'stripe_subscription_id' })
+
+        // Update billing_active on user
+        if (isActive && !user.billing_active) {
+          await supabase
+            .from('users')
+            .update({ billing_active: true })
+            .eq('id', user.id)
+          user.billing_active = true
+        }
+
+        // Use the synced subscription for the response
+        subscription = {
+          ...subRecord,
+          id: stripeSub.id,
+          created_at: new Date().toISOString(),
+        } as typeof subscription
+
+        console.log(`[Billing] Self-healed: synced subscription ${stripeSub.id} for user ${user.id}`)
+      }
+    } catch (err) {
+      console.error('[Billing] Self-heal Stripe check failed:', err)
+    }
+  }
 
   // Count usage in current period
   const periodStart = subscription?.current_period_start
