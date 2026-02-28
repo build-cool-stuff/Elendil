@@ -110,6 +110,12 @@ Claude is explicitly allowed to do all of the following without asking for permi
 - `npx tsx` (running scripts)
 - All git commands: `git status`, `git diff`, `git log`, `git add`, `git commit`, `git push`, `git checkout`, `git branch`
 
+### Web Access
+- Use WebFetch and WebSearch freely — no confirmation needed
+- Fetch documentation, API references, npm packages, Stack Overflow, GitHub issues, etc.
+- Search the web for current best practices, library docs, or error solutions
+- Proactively research when encountering unfamiliar APIs, libraries, or error messages
+
 ### Git Workflow
 After making code changes, always commit and push to GitHub by default:
 1. Stage the changed files (specific files, not `git add -A`)
