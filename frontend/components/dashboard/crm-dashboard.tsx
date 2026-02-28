@@ -6,6 +6,7 @@ import { Shader, ChromaFlow, Swirl } from "shaders/react"
 import { GrainOverlay } from "@/components/grain-overlay"
 import { Card, Button } from "shared-components"
 import { QRCodeGenerator } from "@/components/dashboard/qr-code-generator"
+import { useCampaigns } from "@/hooks/use-campaigns"
 import {
   Settings,
   LogOut,
@@ -24,6 +25,7 @@ export function CRMDashboard() {
   const shaderContainerRef = useRef<HTMLDivElement>(null)
   const [isShaderLoaded, setIsShaderLoaded] = useState(false)
   const { signOut } = useClerk()
+  const { campaigns, isLoading: campaignsLoading, mutate: mutateCampaigns } = useCampaigns()
 
   const handleLogout = async () => {
     try {
@@ -70,23 +72,6 @@ export function CRMDashboard() {
     { icon: MapPin, label: "Map", id: "map" },
     { icon: Facebook, label: "Campaigns", id: "campaigns" },
   ]
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case "qr-code":
-        return <QRCodeGenerator />
-      case "map":
-        return <MapPlaceholder />
-      case "campaigns":
-        return <CampaignsPlaceholder />
-      case "settings":
-        return <SettingsPanel />
-      case "support":
-        return <SupportPanel />
-      default:
-        return <QRCodeGenerator />
-    }
-  }
 
   return (
     <div className="h-screen relative overflow-hidden bg-background">
@@ -203,9 +188,23 @@ export function CRMDashboard() {
           </div>
         </Card>
 
-        {/* Main Content Area */}
-        <div className="col-span-10 space-y-6 h-screen overflow-y-auto pb-6">
-          {renderContent()}
+        {/* Main Content Area — all tabs stay mounted, hidden via CSS */}
+        <div className="col-span-10 h-screen overflow-y-auto pb-6">
+          <div style={{ display: activeTab === "qr-code" ? undefined : "none" }} className="space-y-6">
+            <QRCodeGenerator campaigns={campaigns} isLoading={campaignsLoading} mutate={mutateCampaigns} />
+          </div>
+          <div style={{ display: activeTab === "map" ? undefined : "none" }} className="space-y-6">
+            <MapPlaceholder />
+          </div>
+          <div style={{ display: activeTab === "campaigns" ? undefined : "none" }} className="space-y-6">
+            <CampaignsPlaceholder />
+          </div>
+          <div style={{ display: activeTab === "settings" ? undefined : "none" }} className="space-y-6">
+            <SettingsPanel />
+          </div>
+          <div style={{ display: activeTab === "support" ? undefined : "none" }} className="space-y-6">
+            <SupportPanel />
+          </div>
         </div>
       </div>
     </div>

@@ -1,22 +1,21 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Card, Button, Input, Badge } from "shared-components"
 import { Plus, Download, Copy, ExternalLink, Trash2, QrCode, Eye, Pause, Play, Archive, Filter } from "lucide-react"
-import type { Campaign, CampaignStatus } from "@/lib/supabase/types"
-
-interface CampaignWithStats extends Campaign {
-  stats?: {
-    total_scans: number
-    unique_visitors: number
-  }
-}
+import type { CampaignStatus } from "@/lib/supabase/types"
+import type { CampaignWithStats } from "@/hooks/use-campaigns"
+import type { KeyedMutator } from "swr"
 
 type StatusFilter = "all" | "active" | "paused" | "archived"
 
-export function QRCodeGenerator() {
-  const [campaigns, setCampaigns] = useState<CampaignWithStats[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+interface QRCodeGeneratorProps {
+  campaigns: CampaignWithStats[]
+  isLoading: boolean
+  mutate: KeyedMutator<CampaignWithStats[]>
+}
+
+export function QRCodeGenerator({ campaigns, isLoading, mutate }: QRCodeGeneratorProps) {
   const [isCreating, setIsCreating] = useState(false)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignWithStats | null>(null)
@@ -30,25 +29,6 @@ export function QRCodeGenerator() {
     destination_url: "",
     cookie_duration_days: 30 as 30 | 60 | 90,
   })
-
-  // Fetch campaigns
-  useEffect(() => {
-    fetchCampaigns()
-  }, [])
-
-  async function fetchCampaigns() {
-    try {
-      const response = await fetch("/api/campaigns")
-      if (response.ok) {
-        const data = await response.json()
-        setCampaigns(data.campaigns || [])
-      }
-    } catch (error) {
-      console.error("Failed to fetch campaigns:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   async function createCampaign(e: React.FormEvent) {
     e.preventDefault()
@@ -66,7 +46,7 @@ export function QRCodeGenerator() {
 
       if (response.ok) {
         const data = await response.json()
-        setCampaigns([data.campaign, ...campaigns])
+        mutate((current) => [data.campaign, ...(current ?? [])], false)
         setShowCreateForm(false)
         setFormData({
           name: "",
@@ -107,9 +87,10 @@ export function QRCodeGenerator() {
       })
 
       if (response.ok) {
-        setCampaigns(campaigns.map(c =>
-          c.id === campaignId ? { ...c, status } : c
-        ))
+        mutate(
+          (current) => current?.map((c) => (c.id === campaignId ? { ...c, status } : c)),
+          false
+        )
         if (selectedCampaign?.id === campaignId) {
           setSelectedCampaign({ ...selectedCampaign, status })
         }
@@ -130,9 +111,13 @@ export function QRCodeGenerator() {
       })
 
       if (response.ok) {
-        setCampaigns(campaigns.map(c =>
-          c.id === campaignId ? { ...c, status: "archived" as CampaignStatus } : c
-        ))
+        mutate(
+          (current) =>
+            current?.map((c) =>
+              c.id === campaignId ? { ...c, status: "archived" as CampaignStatus } : c
+            ),
+          false
+        )
         if (selectedCampaign?.id === campaignId) {
           setSelectedCampaign({ ...selectedCampaign, status: "archived" })
         }
@@ -151,7 +136,7 @@ export function QRCodeGenerator() {
       })
 
       if (response.ok) {
-        setCampaigns(campaigns.filter(c => c.id !== campaignId))
+        mutate((current) => current?.filter((c) => c.id !== campaignId), false)
         if (selectedCampaign?.id === campaignId) {
           setSelectedCampaign(null)
         }
@@ -177,7 +162,7 @@ export function QRCodeGenerator() {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  function downloadQRCode(campaign: Campaign) {
+  function downloadQRCode(campaign: CampaignWithStats) {
     if (!campaign.qr_code_data_url) return
 
     const link = document.createElement("a")
@@ -331,9 +316,24 @@ export function QRCodeGenerator() {
           </div>
 
           {isLoading ? (
-            <div className="text-center py-8">
-              <div className="w-8 h-8 border-2 border-white/20 border-t-white/70 rounded-full animate-spin mx-auto" />
-              <p className="text-white/60 mt-2">Loading campaigns...</p>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="p-4 rounded-xl bg-white/5 animate-pulse">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-5 w-36 bg-white/10 rounded" />
+                        <div className="h-5 w-14 bg-white/10 rounded-full" />
+                      </div>
+                      <div className="h-4 w-48 bg-white/10 rounded" />
+                    </div>
+                    <div className="flex items-center gap-1 ml-2">
+                      <div className="h-9 w-9 bg-white/10 rounded-lg" />
+                      <div className="h-9 w-9 bg-white/10 rounded-lg" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : filteredCampaigns.length === 0 ? (
             <div className="text-center py-8">

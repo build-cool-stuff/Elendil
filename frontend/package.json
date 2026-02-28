@@ -63,6 +63,7 @@
     "shared-components": "*",
     "sonner": "^1.7.4",
     "svix": "^1.84.1",
+    "swr": "^2.4.1",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
     "ua-parser-js": "^2.0.8",
