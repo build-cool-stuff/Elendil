@@ -37,9 +37,12 @@ export async function POST() {
 
   try {
     // Create or get Stripe customer first
+    console.log('[Billing] Creating/getting Stripe customer for user:', user.id)
     const customerId = await createOrGetStripeCustomer(user.id, user.email)
+    console.log('[Billing] Got customer:', customerId)
 
     // Create Checkout session for metered subscription
+    console.log('[Billing] Creating checkout session...')
     const stripe = getStripe()
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -59,11 +62,14 @@ export async function POST() {
         },
       },
     })
+    console.log('[Billing] Checkout session created:', session.id)
 
     return NextResponse.json({ url: session.url })
   } catch (err) {
     console.error('[Billing] Setup failed:', err)
-    const message = err instanceof Error ? err.message : 'Billing setup failed'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Billing setup failed. Please try again in a moment.' },
+      { status: 500 }
+    )
   }
 }
