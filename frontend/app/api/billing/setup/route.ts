@@ -1,32 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createServerClient } from '@/lib/supabase/server'
-import {
-  createOrGetStripeCustomer,
-  attachPaymentMethod,
-  createMeterSubscription,
-} from '@/lib/stripe/billing'
+import { createOrGetStripeCustomer } from '@/lib/stripe/billing'
+import { getStripe } from '@/lib/stripe/client'
 
 /**
  * POST /api/billing/setup
- * Sets up billing for a user: creates Stripe customer, attaches payment method,
- * creates metered subscription.
+ * Creates a Stripe Checkout session for metered subscription setup.
+ * Returns { url } for the hosted checkout page.
  */
-export async function POST(request: NextRequest) {
+export async function POST() {
   const { userId: clerkId } = await auth()
   if (!clerkId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  let body: { payment_method_id: string }
-  try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
-  }
-
-  if (!body.payment_method_id) {
-    return NextResponse.json({ error: 'payment_method_id is required' }, { status: 400 })
   }
 
   const supabase = createServerClient()
@@ -42,40 +28,39 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 })
   }
 
+  const priceId = process.env.STRIPE_PRICE_ID
+  if (!priceId) {
+    return NextResponse.json({ error: 'Billing not configured' }, { status: 500 })
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
   try {
-    // 1. Create or get Stripe customer
+    // Create or get Stripe customer first
     const customerId = await createOrGetStripeCustomer(user.id, user.email)
 
-    // 2. Attach payment method
-    await attachPaymentMethod(customerId, body.payment_method_id)
-
-    // 3. Create metered subscription
-    const subscriptionId = await createMeterSubscription(customerId)
-
-    // 4. Insert billing subscription record
-    await supabase.from('billing_subscriptions').insert({
-      user_id: user.id,
-      stripe_subscription_id: subscriptionId,
-      stripe_price_id: process.env.STRIPE_PRICE_ID,
-      status: 'active',
-      current_period_start: new Date().toISOString(),
-      current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    // Create Checkout session for metered subscription
+    const stripe = getStripe()
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      mode: 'subscription',
+      line_items: [
+        {
+          price: priceId,
+        },
+      ],
+      payment_method_types: ['card'],
+      success_url: `${appUrl}/dashboard?billing=success`,
+      cancel_url: `${appUrl}/dashboard?billing=canceled`,
+      subscription_data: {
+        metadata: {
+          supabase_user_id: user.id,
+          app: 'elendil',
+        },
+      },
     })
 
-    // 5. Activate billing on user
-    await supabase
-      .from('users')
-      .update({
-        stripe_customer_id: customerId,
-        billing_active: true,
-      })
-      .eq('id', user.id)
-
-    return NextResponse.json({
-      success: true,
-      customer_id: customerId,
-      subscription_id: subscriptionId,
-    })
+    return NextResponse.json({ url: session.url })
   } catch (err) {
     console.error('[Billing] Setup failed:', err)
     const message = err instanceof Error ? err.message : 'Billing setup failed'

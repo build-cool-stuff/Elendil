@@ -433,14 +433,12 @@ function NoBillingState() {
     setSetupError(null)
 
     try {
-      // For now, redirect to a setup flow
-      // In production, this would use Stripe Elements for payment method collection
-      const res = await fetch("/api/billing/portal", { method: "POST" })
-      if (res.ok) {
-        const { url } = await res.json()
-        window.location.href = url
+      const res = await fetch("/api/billing/setup", { method: "POST" })
+      const data = await res.json()
+      if (res.ok && data.url) {
+        window.location.href = data.url
       } else {
-        setSetupError("Unable to start billing setup. Please contact support.")
+        setSetupError(data.error || "Unable to start billing setup. Please contact support.")
       }
     } catch {
       setSetupError("Something went wrong. Please try again.")
