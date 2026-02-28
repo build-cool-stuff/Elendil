@@ -62,6 +62,12 @@ export interface EdgeCampaignData {
   meta_access_token: string | null
   encrypted_access_token: string | null
   encryption_iv: string | null
+  // Billing fields (piggyback on existing campaign+user join)
+  billing_active: boolean
+  stripe_customer_id: string | null
+  monthly_scan_limit: number
+  cap_override: boolean
+  current_period_start: string | null
 }
 
 /**
@@ -97,11 +103,20 @@ export async function lookupCampaign(
           meta_pixel_id,
           meta_encrypted_access_token,
           meta_encryption_iv,
+          stripe_customer_id,
+          billing_active,
+          monthly_scan_limit,
+          cap_override,
           meta_integrations (
             pixel_id,
             access_token,
             encrypted_access_token,
             encryption_iv,
+            status
+          ),
+          billing_subscriptions (
+            current_period_start,
+            current_period_end,
             status
           )
         )
@@ -142,6 +157,10 @@ export async function lookupCampaign(
   const effectivePixelId = userPixelId || (isMetaActive ? metaIntegration?.pixel_id : null)
   const hasUserToken = !!(userEncryptedToken && userEncryptionIv)
 
+  // Extract billing subscription data (active/trialing sub with latest period)
+  const activeSub = (userData?.billing_subscriptions as any[] || [])
+    .find((s: any) => ['active', 'trialing'].includes(s.status))
+
   return {
     id: data.id,
     name: data.name,
@@ -158,6 +177,12 @@ export async function lookupCampaign(
     meta_access_token: hasUserToken ? null : (isMetaActive ? metaIntegration?.access_token : null),
     encrypted_access_token: hasUserToken ? userEncryptedToken : (isMetaActive ? metaIntegration?.encrypted_access_token : null),
     encryption_iv: hasUserToken ? userEncryptionIv : (isMetaActive ? metaIntegration?.encryption_iv : null),
+    // Billing fields
+    billing_active: userData?.billing_active ?? false,
+    stripe_customer_id: userData?.stripe_customer_id || null,
+    monthly_scan_limit: userData?.monthly_scan_limit ?? 250,
+    cap_override: userData?.cap_override ?? false,
+    current_period_start: activeSub?.current_period_start || null,
   }
 }
 

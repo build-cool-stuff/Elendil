@@ -11,7 +11,8 @@
 export const runtime = 'edge'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createEdgeClient, lookupCampaign } from '@/lib/edge/supabase-edge'
+import { createEdgeClient, lookupCampaign, type EdgeCampaignData } from '@/lib/edge/supabase-edge'
+import { checkBillingFromCampaign } from '@/lib/stripe/billing-check'
 import { extractClientIP, extractGeoFromHeaders } from '@/lib/edge/geo'
 import { parseUserAgent } from '@/lib/edge/user-agent'
 import {
@@ -58,6 +59,17 @@ export async function POST(
 
   if (!campaign) {
     return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
+  }
+
+  // 1b. Billing gate
+  const billing = await checkBillingFromCampaign(campaign)
+  if (!billing.billing_active || billing.over_hard_cap) {
+    const reason = !billing.billing_active ? 'inactive' : 'over_cap'
+    console.log(`[Track] Billing ${reason}, skipping: ${slug} (${billing.scan_count}/${billing.limit})`)
+    return NextResponse.json({ success: true, skipped: true, reason: `billing_${reason}` })
+  }
+  if (billing.over_soft_cap) {
+    console.warn(`[Track] Billing soft cap warning: ${slug} (${billing.scan_count}/${billing.limit})`)
   }
 
   // 2. Extract request data
@@ -208,7 +220,24 @@ export async function POST(
     }
   })()
 
-  // 12. Return success with geo info (for debugging in dev)
+  // 12. Fire-and-forget: emit billing meter event
+  if (campaign.billing_active && campaign.stripe_customer_id) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    void fetch(`${appUrl}/api/billing/emit-usage`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-api-key': process.env.INTERNAL_API_KEY || '',
+      },
+      body: JSON.stringify({
+        user_id: campaign.user_id,
+        stripe_customer_id: campaign.stripe_customer_id,
+        event_id: eventId,
+      }),
+    }).catch((err) => console.error('[Track] Failed to emit usage:', err))
+  }
+
+  // 13. Return success with geo info (for debugging in dev)
   return NextResponse.json({
     success: true,
     geo: {

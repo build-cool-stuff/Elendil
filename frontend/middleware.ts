@@ -10,6 +10,9 @@ const isPublicRoute = createRouteMatcher([
   "/go/(.*)",            // New QR code redirect routes (Edge, public)
   "/api/go/(.*)",        // New QR code API (Edge, public)
   "/api/scans",          // Scan recording API (public)
+  "/api/webhooks/stripe(.*)",  // Stripe webhooks (signature-verified)
+  "/api/cron/(.*)",      // Cron jobs (secret-protected)
+  "/api/billing/emit-usage",   // Internal billing endpoint (API key-protected)
 ])
 
 export default clerkMiddleware(async (auth, request) => {

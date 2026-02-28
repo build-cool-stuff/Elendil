@@ -15,7 +15,9 @@ import {
   lookupCampaign,
   lookupSuburbByPostcode,
   recordScan,
+  type EdgeCampaignData,
 } from '@/lib/edge/supabase-edge'
+import { checkBillingFromCampaign } from '@/lib/stripe/billing-check'
 import {
   extractGeoFromHeaders,
   extractClientIP,
@@ -50,6 +52,18 @@ export async function GET(
     // Campaign not found or inactive - redirect to home
     console.log(`[Edge] Campaign not found: ${slug}`)
     return NextResponse.redirect(new URL('/', request.url))
+  }
+
+  // 1b. Billing gate — check if user has active billing
+  const billing = await checkBillingFromCampaign(campaign)
+  if (!billing.billing_active || billing.over_hard_cap) {
+    // Graceful degradation: redirect to destination WITHOUT tracking
+    const reason = !billing.billing_active ? 'inactive' : 'over_cap'
+    console.log(`[Edge] Billing ${reason}, skipping tracking: ${slug} (${billing.scan_count}/${billing.limit})`)
+    return NextResponse.redirect(campaign.destination_url, { status: 302 })
+  }
+  if (billing.over_soft_cap) {
+    console.warn(`[Edge] Billing soft cap warning: ${slug} (${billing.scan_count}/${billing.limit})`)
   }
 
   // 2. Extract request data
@@ -182,6 +196,23 @@ export async function GET(
     is_first_scan: isFirstScan || isFirstCampaignVisit,
     meta_event_id: eventId,
   })
+
+  // Fire-and-forget: emit billing meter event
+  if (campaign.billing_active && campaign.stripe_customer_id) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    void fetch(`${appUrl}/api/billing/emit-usage`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-api-key': process.env.INTERNAL_API_KEY || '',
+      },
+      body: JSON.stringify({
+        user_id: campaign.user_id,
+        stripe_customer_id: campaign.stripe_customer_id,
+        event_id: eventId,
+      }),
+    }).catch((err) => console.error('[Edge] Failed to emit usage:', err))
+  }
 
   const response = NextResponse.redirect(campaign.destination_url, { status: 302 })
 
