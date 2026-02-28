@@ -1,17 +1,32 @@
 /**
  * Edge-compatible billing gate.
- * Uses billing fields already embedded in EdgeCampaignData (zero extra queries for billing status).
- * Only requires ONE additional query: counting scan_usage_events in the current period.
+ *
+ * Determines whether a campaign should get premium tracking features
+ * (Meta Pixel, CAPI, BigDataCloud precision geo, suburb lookup) or
+ * degrade to a basic QR redirect.
+ *
+ * Degraded when:
+ * - billing_active is false (no subscription), OR
+ * - accrued spend in current period >= $5,000 AUD
+ *
+ * Degraded mode: QR code still redirects to destination, still records
+ * basic scan (device, Vercel geo), but no Meta Pixel, no CAPI, no
+ * BigDataCloud, no suburb lookup.
  */
 
 import { createEdgeClient } from '@/lib/edge/supabase-edge'
 
+/** $5,000 AUD spend cap per billing period */
+const SPEND_CAP_AUD = 5000
+/** $20 AUD per scan */
+const PRICE_PER_SCAN_AUD = 20
+
 export interface BillingCheckResult {
   billing_active: boolean
-  over_soft_cap: boolean
-  over_hard_cap: boolean
+  /** true = no premium features (Meta, BigDataCloud, suburb lookup) */
+  degraded: boolean
   scan_count: number
-  limit: number
+  accrued_spend_aud: number
 }
 
 /**
@@ -22,41 +37,23 @@ export async function checkBillingFromCampaign(campaignData: {
   user_id: string
   billing_active: boolean
   stripe_customer_id: string | null
-  monthly_scan_limit: number
-  cap_override: boolean
   current_period_start: string | null
 }): Promise<BillingCheckResult> {
-  const {
-    billing_active,
-    monthly_scan_limit,
-    cap_override,
-    current_period_start,
-  } = campaignData
+  const { billing_active, current_period_start } = campaignData
 
-  // If billing is not active, short-circuit
+  // If billing is not active, degrade immediately
   if (!billing_active) {
     return {
       billing_active: false,
-      over_soft_cap: false,
-      over_hard_cap: false,
+      degraded: true,
       scan_count: 0,
-      limit: monthly_scan_limit,
-    }
-  }
-
-  // If admin override, skip cap checks
-  if (cap_override) {
-    return {
-      billing_active: true,
-      over_soft_cap: false,
-      over_hard_cap: false,
-      scan_count: 0,
-      limit: monthly_scan_limit,
+      accrued_spend_aud: 0,
     }
   }
 
   // Count usage events in current billing period
-  const periodStart = current_period_start || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+  const periodStart = current_period_start
+    || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
   const supabase = createEdgeClient()
 
   const { count, error } = await supabase
@@ -68,24 +65,27 @@ export async function checkBillingFromCampaign(campaignData: {
 
   if (error) {
     console.error('[Billing] Failed to count usage:', error)
-    // Fail open - allow the scan through
+    // Fail open — allow full features through
     return {
       billing_active: true,
-      over_soft_cap: false,
-      over_hard_cap: false,
+      degraded: false,
       scan_count: 0,
-      limit: monthly_scan_limit,
+      accrued_spend_aud: 0,
     }
   }
 
   const scanCount = count || 0
-  const softCapThreshold = Math.floor(monthly_scan_limit * 0.8)
+  const accruedSpendAud = scanCount * PRICE_PER_SCAN_AUD
+  const degraded = accruedSpendAud >= SPEND_CAP_AUD
+
+  if (degraded) {
+    console.warn(`[Billing] Spend cap reached: $${accruedSpendAud} AUD (${scanCount} scans)`)
+  }
 
   return {
     billing_active: true,
-    over_soft_cap: scanCount >= softCapThreshold,
-    over_hard_cap: scanCount >= monthly_scan_limit,
+    degraded,
     scan_count: scanCount,
-    limit: monthly_scan_limit,
+    accrued_spend_aud: accruedSpendAud,
   }
 }

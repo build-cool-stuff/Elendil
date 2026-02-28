@@ -54,17 +54,66 @@ export async function GET(
     return NextResponse.redirect(new URL('/', request.url))
   }
 
-  // 1b. Billing gate — check if user has active billing
+  // 1b. Billing gate — determine if premium features are available
   const billing = await checkBillingFromCampaign(campaign)
-  if (!billing.billing_active || billing.over_hard_cap) {
-    // Graceful degradation: redirect to destination WITHOUT tracking
-    const reason = !billing.billing_active ? 'inactive' : 'over_cap'
-    console.log(`[Edge] Billing ${reason}, skipping tracking: ${slug} (${billing.scan_count}/${billing.limit})`)
+
+  // DEGRADED MODE: billing inactive or $5000+ AUD accrued
+  // QR code still redirects, records basic scan (device + Vercel geo only)
+  // No Meta Pixel, no CAPI, no BigDataCloud, no suburb lookup, no bridge
+  if (billing.degraded) {
+    const reason = !billing.billing_active ? 'inactive' : `spend_cap ($${billing.accrued_spend_aud})`
+    console.log(`[Edge] Billing degraded (${reason}), basic redirect: ${slug}`)
+
+    const headers = request.headers
+    const userAgent = headers.get('user-agent') || ''
+    const device = parseUserAgent(userAgent)
+
+    if (!device.is_bot) {
+      const cookieHeader = headers.get('cookie') || ''
+      const geo = extractGeoFromHeaders(headers)
+      const clientIP = extractClientIP(headers)
+      const { visitorId, isNew: isFirstScan } = getOrCreateVisitorId(cookieHeader)
+      const isFirstCampaignVisit = !hasVisitedCampaign(cookieHeader, campaign.id)
+      const cookieExpiry = calculateCookieExpiry(campaign.cookie_duration_days)
+      const ipHash = await hashIPAddress(clientIP)
+
+      recordScan({
+        campaign_id: campaign.id,
+        visitor_id: visitorId,
+        ip_address_hash: ipHash,
+        latitude: geo.latitude,
+        longitude: geo.longitude,
+        suburb: geo.city,
+        postcode: geo.postalCode,
+        state: getStateName(geo.countryRegion),
+        country: geo.country || 'AU',
+        user_agent: userAgent,
+        device_type: device.device_type,
+        browser: device.browser,
+        os: device.os,
+        referrer: headers.get('referer'),
+        cookie_expires_at: cookieExpiry.toISOString(),
+        is_first_scan: isFirstScan || isFirstCampaignVisit,
+        meta_event_id: null,
+      })
+
+      const response = NextResponse.redirect(campaign.destination_url, { status: 302 })
+      const cookies = buildTrackingCookies({
+        visitorId,
+        campaignId: campaign.id,
+        eventId: '',
+        expiresAt: cookieExpiry,
+      })
+      cookies.forEach((cookie) => {
+        response.headers.append('Set-Cookie', cookie)
+      })
+      return response
+    }
+
     return NextResponse.redirect(campaign.destination_url, { status: 302 })
   }
-  if (billing.over_soft_cap) {
-    console.warn(`[Edge] Billing soft cap warning: ${slug} (${billing.scan_count}/${billing.limit})`)
-  }
+
+  // FULL MODE: billing active and under spend cap — all premium features enabled
 
   // 2. Extract request data
   const headers = request.headers
@@ -111,23 +160,14 @@ export async function GET(
   // 9. Determine redirect behavior
   // If bridge is enabled, the bridge page handles CAPI + precision geo tracking
   // If bridge is disabled, we fire CAPI here and record scan with basic Vercel geo
-
-  // 10. Determine redirect behavior and scan recording strategy
-  // If bridge is enabled, the bridge page will record the scan with precision geo
-  // If bridge is disabled, we record the scan here with basic Vercel geo
-  // If bridge is enabled, redirect to bridge page for client-side pixel firing
-  // Otherwise, direct redirect to destination
   if (campaign.bridge_enabled) {
     // Redirect to bridge page with event context
-    // Bridge page is at /go/[slug]/bridge (separate route to avoid route.ts conflict)
     const bridgeUrl = new URL(`/go/${slug}/bridge`, request.url)
     bridgeUrl.searchParams.set('eid', eventId)
 
     // Use 307 Temporary Redirect to prevent browser caching of the redirect
-    // This ensures future QR scans always hit the edge handler first
     const response = NextResponse.redirect(bridgeUrl, { status: 307 })
 
-    // Set tracking cookies
     const cookies = buildTrackingCookies({
       visitorId,
       campaignId: campaign.id,
@@ -146,7 +186,6 @@ export async function GET(
   }
 
   // Direct redirect without bridge - fire CAPI and record scan here with Vercel geo
-  // (Bridge page handles its own CAPI + scan recording with BigDataCloud precision)
 
   // Fire Meta CAPI event for direct redirects (async, non-blocking)
   if (campaign.meta_pixel_id) {
@@ -216,7 +255,6 @@ export async function GET(
 
   const response = NextResponse.redirect(campaign.destination_url, { status: 302 })
 
-  // Set tracking cookies
   const cookies = buildTrackingCookies({
     visitorId,
     campaignId: campaign.id,

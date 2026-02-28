@@ -61,15 +61,13 @@ export async function POST(
     return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
   }
 
-  // 1b. Billing gate
+  // 1b. Billing gate — degraded users should never reach the bridge/track endpoint,
+  // but guard it in case they do (e.g. cached bridge page)
   const billing = await checkBillingFromCampaign(campaign)
-  if (!billing.billing_active || billing.over_hard_cap) {
-    const reason = !billing.billing_active ? 'inactive' : 'over_cap'
-    console.log(`[Track] Billing ${reason}, skipping: ${slug} (${billing.scan_count}/${billing.limit})`)
-    return NextResponse.json({ success: true, skipped: true, reason: `billing_${reason}` })
-  }
-  if (billing.over_soft_cap) {
-    console.warn(`[Track] Billing soft cap warning: ${slug} (${billing.scan_count}/${billing.limit})`)
+  if (billing.degraded) {
+    const reason = !billing.billing_active ? 'inactive' : `spend_cap ($${billing.accrued_spend_aud})`
+    console.log(`[Track] Billing degraded (${reason}), skipping: ${slug}`)
+    return NextResponse.json({ success: true, skipped: true, reason: 'billing_degraded' })
   }
 
   // 2. Extract request data

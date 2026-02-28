@@ -13,7 +13,7 @@
 ## Monorepo Layout
 - `frontend/` — Next.js app (all development happens here)
 - `shared-components/` — Radix UI wrapper package
-- `supabase/migrations/` — 6 SQL migrations (001–006)
+- `supabase/migrations/` — 8 SQL migrations (001–008)
 
 ## Commands
 ```bash
@@ -49,9 +49,12 @@ npx tsx scripts/seed-suburbs.ts  # Seed AU suburb data
 ## Bridge Page Flow
 ```
 QR scan → GET /go/[slug] (Edge, <50ms)
-  → 307 to /go/[slug]/bridge?eid=xxx (if bridge_enabled)
-  → Bridge loads, fires: Meta Pixel (client) + POST /api/go/[slug]/track (CAPI + geo + scan)
-  → Auto-redirect to destination_url after bridge_duration_ms (default 800)
+  → Billing check (piggybacks on campaign lookup, 1 extra count query)
+  → DEGRADED: 302 to destination_url (basic scan recorded, no premium features)
+  → ACTIVE + bridge_enabled: 307 to /go/[slug]/bridge?eid=xxx
+    → Bridge loads, fires: Meta Pixel (client) + POST /api/go/[slug]/track (CAPI + geo + scan)
+    → Auto-redirect to destination_url after bridge_duration_ms (default 800)
+  → ACTIVE + no bridge: fire CAPI + record scan + 302 to destination_url
 ```
 
 ## Key Files
@@ -60,13 +63,15 @@ QR scan → GET /go/[slug] (Edge, <50ms)
 - Tracking endpoint: `frontend/app/api/go/[slug]/track/route.ts` (Edge)
 - Dashboard: `frontend/components/dashboard/crm-dashboard.tsx`
 - Edge utils: `frontend/lib/edge/` (bigdatacloud, meta-capi, encryption, cookies, geo, user-agent)
+- Stripe billing: `frontend/lib/stripe/` (client.ts, billing.ts, billing-check.ts)
 - Supabase clients: `frontend/lib/supabase/` (client.ts=browser+Clerk JWT, server.ts=secret key, ensure-user.ts=sync)
 - Auth middleware: `frontend/middleware.ts`
 
 ## Routes
 - **Public:** `/`, `/login`, `/signup`, `/go/[slug]`, `/go/[slug]/bridge`
-- **Protected:** `/dashboard`, `/api/campaigns`, `/api/campaigns/[id]`, `/api/user/settings`
-- **Webhooks:** `/api/webhooks/clerk` (Svix-verified user sync)
+- **Protected:** `/dashboard`, `/api/campaigns`, `/api/campaigns/[id]`, `/api/user/settings`, `/api/billing/*`
+- **Webhooks:** `/api/webhooks/clerk` (Svix-verified user sync), `/api/webhooks/stripe` (signature-verified)
+- **Internal:** `/api/billing/emit-usage` (API key), `/api/cron/retry-usage` (cron secret)
 
 ## Env Vars
 ```
@@ -75,13 +80,22 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, CLERK_SECRET_KEY, CLERK_WEBHOOK_SECRET
 ENCRYPTION_KEY (32-byte base64), IP_HASH_SALT
 BIGDATACLOUD_API_KEY
 NEXT_PUBLIC_APP_URL
+STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET
+STRIPE_PRICE_ID, STRIPE_METER_EVENT_NAME
+CRON_SECRET, INTERNAL_API_KEY
 ```
 
 ## What's Built
-QR gen + campaign CRUD, Edge redirect + bridge, BigDataCloud geo, Meta CAPI, Clerk auth + Supabase sync, cookie tracking, dashboard with filters, landing page with WebGL shaders
+QR gen + campaign CRUD, Edge redirect + bridge, BigDataCloud geo, Meta CAPI, Clerk auth + Supabase sync, cookie tracking, dashboard with filters, landing page with WebGL shaders, Stripe metered billing ($20 AUD/scan, $5000 spend cap degrades to basic QR)
+
+## Billing Degradation
+When billing is inactive or accrued spend >= $5,000 AUD, QR codes degrade to basic redirects:
+- Still redirects to destination (never breaks)
+- Still records basic scan (device, Vercel geo)
+- NO Meta Pixel, NO CAPI, NO BigDataCloud precision geo, NO suburb lookup, NO bridge page
 
 ## Not Yet Built
-Analytics dashboard (heat maps, charts), Meta OAuth flow, campaign attribution/ROI, custom domains, billing (Stripe), A/B testing
+Analytics dashboard (heat maps, charts), Meta OAuth flow, campaign attribution/ROI, custom domains, A/B testing
 
 ## Allowed Tools (no confirmation needed)
 Claude is explicitly allowed to do all of the following without asking for permission:

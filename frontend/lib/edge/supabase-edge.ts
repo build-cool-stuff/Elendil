@@ -65,8 +65,6 @@ export interface EdgeCampaignData {
   // Billing fields (piggyback on existing campaign+user join)
   billing_active: boolean
   stripe_customer_id: string | null
-  monthly_scan_limit: number
-  cap_override: boolean
   current_period_start: string | null
 }
 
@@ -105,8 +103,6 @@ export async function lookupCampaign(
           meta_encryption_iv,
           stripe_customer_id,
           billing_active,
-          monthly_scan_limit,
-          cap_override,
           meta_integrations (
             pixel_id,
             access_token,
@@ -180,8 +176,6 @@ export async function lookupCampaign(
     // Billing fields
     billing_active: userData?.billing_active ?? false,
     stripe_customer_id: userData?.stripe_customer_id || null,
-    monthly_scan_limit: userData?.monthly_scan_limit ?? 250,
-    cap_override: userData?.cap_override ?? false,
     current_period_start: activeSub?.current_period_start || null,
   }
 }

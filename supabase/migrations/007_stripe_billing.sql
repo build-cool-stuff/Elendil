@@ -4,9 +4,7 @@
 -- 1. Add billing columns to users table
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255) UNIQUE,
-  ADD COLUMN IF NOT EXISTS billing_active BOOLEAN DEFAULT FALSE,
-  ADD COLUMN IF NOT EXISTS monthly_scan_limit INTEGER DEFAULT 250,
-  ADD COLUMN IF NOT EXISTS cap_override BOOLEAN DEFAULT FALSE;
+  ADD COLUMN IF NOT EXISTS billing_active BOOLEAN DEFAULT FALSE;
 
 -- Index for fast Stripe customer lookups
 CREATE INDEX IF NOT EXISTS idx_users_stripe_customer_id

@@ -3,9 +3,12 @@ import { auth } from '@clerk/nextjs/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { getStripe } from '@/lib/stripe/client'
 
+const PRICE_PER_SCAN_AUD = 20
+const SPEND_CAP_AUD = 5000
+
 /**
  * GET /api/billing/status
- * Returns billing status, usage count, limits, and next invoice preview.
+ * Returns billing status, usage count, accrued spend, and next invoice preview.
  */
 export async function GET() {
   const { userId: clerkId } = await auth()
@@ -18,7 +21,7 @@ export async function GET() {
   // Get user with billing info
   const { data: user, error: userError } = await supabase
     .from('users')
-    .select('id, stripe_customer_id, billing_active, monthly_scan_limit, cap_override')
+    .select('id, stripe_customer_id, billing_active')
     .eq('clerk_id', clerkId)
     .single()
 
@@ -47,6 +50,9 @@ export async function GET() {
     .gte('created_at', periodStart)
     .neq('status', 'dead_letter')
 
+  const currentScanCount = scanCount || 0
+  const accruedSpendAud = currentScanCount * PRICE_PER_SCAN_AUD
+
   // Get upcoming invoice preview if customer exists
   let upcomingInvoice = null
   if (user.stripe_customer_id) {
@@ -68,8 +74,7 @@ export async function GET() {
   return NextResponse.json({
     billing_active: user.billing_active,
     stripe_customer_id: user.stripe_customer_id,
-    monthly_scan_limit: user.monthly_scan_limit,
-    cap_override: user.cap_override,
+    degraded: !user.billing_active || accruedSpendAud >= SPEND_CAP_AUD,
     subscription: subscription
       ? {
           id: subscription.stripe_subscription_id,
@@ -80,9 +85,10 @@ export async function GET() {
         }
       : null,
     usage: {
-      scan_count: scanCount || 0,
-      limit: user.monthly_scan_limit,
-      soft_cap: Math.floor(user.monthly_scan_limit * 0.8),
+      scan_count: currentScanCount,
+      accrued_spend_aud: accruedSpendAud,
+      spend_cap_aud: SPEND_CAP_AUD,
+      price_per_scan_aud: PRICE_PER_SCAN_AUD,
     },
     upcoming_invoice: upcomingInvoice,
   })
