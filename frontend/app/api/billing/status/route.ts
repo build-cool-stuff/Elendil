@@ -105,14 +105,25 @@ export async function GET() {
   const periodStart = subscription?.current_period_start
     || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
 
-  const { count: scanCount } = await supabase
-    .from('scan_usage_events')
-    .select('*', { count: 'exact', head: true })
+  // Get user's campaign IDs for scan counting
+  const { data: userCampaigns } = await supabase
+    .from('campaigns')
+    .select('id')
     .eq('user_id', user.id)
-    .gte('created_at', periodStart)
-    .neq('status', 'dead_letter')
 
-  const currentScanCount = scanCount || 0
+  const campaignIds = (userCampaigns || []).map((c) => c.id)
+
+  // Count actual scans from the scans table (always reliably populated)
+  let currentScanCount = 0
+  if (campaignIds.length > 0) {
+    const { count: scanCount } = await supabase
+      .from('scans')
+      .select('*', { count: 'exact', head: true })
+      .in('campaign_id', campaignIds)
+      .gte('scanned_at', periodStart)
+
+    currentScanCount = scanCount || 0
+  }
   const accruedSpendAud = currentScanCount * PRICE_PER_SCAN_AUD
 
   // Get upcoming invoice preview if customer exists

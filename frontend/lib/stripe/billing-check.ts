@@ -55,16 +55,31 @@ export async function checkBillingFromCampaign(campaignData: {
     }
   }
 
-  // Count usage events in current billing period (calendar month)
+  // Count actual scans in current billing period (calendar month)
   const periodStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
   const supabase = createEdgeClient()
 
-  const { count, error } = await supabase
-    .from('scan_usage_events')
-    .select('*', { count: 'exact', head: true })
+  // Get user's campaigns, then count scans directly
+  const { data: campaigns } = await supabase
+    .from('campaigns')
+    .select('id')
     .eq('user_id', campaignData.user_id)
-    .gte('created_at', periodStart)
-    .neq('status', 'dead_letter')
+
+  const campaignIds = (campaigns || []).map((c) => c.id)
+  if (campaignIds.length === 0) {
+    return {
+      billing_active: true,
+      degraded: false,
+      scan_count: 0,
+      accrued_spend_aud: 0,
+    }
+  }
+
+  const { count, error } = await supabase
+    .from('scans')
+    .select('*', { count: 'exact', head: true })
+    .in('campaign_id', campaignIds)
+    .gte('scanned_at', periodStart)
 
   if (error) {
     console.error('[Billing] Failed to count usage:', error)
