@@ -1,66 +1,71 @@
 import { useEffect, useRef } from "react"
 
 /**
- * Detects a left-to-right swipe anywhere on screen to open a mobile drawer.
+ * Detects a left-to-right swipe anywhere on screen to open the mobile drawer.
  *
- * Works from any starting position — no edge zone restriction.
- * Uses three signals to distinguish an intentional menu-open gesture
- * from normal scrolling or tapping:
+ * Why touchend-based instead of touchmove-based:
+ * On iOS Safari, scrollable containers (overflow-y-auto) take ownership of
+ * touch gestures once scrolling begins. The browser throttles or suppresses
+ * touchmove horizontal data mid-gesture. However, touchstart and touchend
+ * ALWAYS fire reliably with accurate coordinates.
  *
- * 1. Direction: must be left-to-right (positive dx)
- * 2. Ratio: horizontal distance must be ≥2x vertical distance
- *    (filters out diagonal scrolls and vertical flicks)
- * 3. Distance: must travel at least 80px horizontally
- *    (filters out taps and small adjustments)
+ * So we record the start position + time on touchstart, then evaluate the
+ * full gesture on touchend: was it far enough, fast enough, and horizontal
+ * enough to be an intentional swipe?
  *
- * Only activates below Tailwind's md breakpoint (768px).
- * All listeners are passive to avoid blocking scroll performance.
+ * Thresholds:
+ * - Distance: ≥70px horizontal (a deliberate swipe, not a tap)
+ * - Direction: horizontal ≥ 1.5x vertical (not a scroll)
+ * - Speed: ≥200px/s (a real flick, not a slow drag)
+ * - Only on mobile (<768px)
  */
 
-const SWIPE_THRESHOLD = 80    // px of horizontal movement to trigger
-const DIRECTION_RATIO = 2     // horizontal must be Nx vertical
-const MOBILE_BREAKPOINT = 768 // matches Tailwind md:
+const MIN_DISTANCE = 70       // px horizontal
+const DIRECTION_RATIO = 1.5   // dx must be ≥ ratio * dy
+const MIN_VELOCITY = 200      // px per second
+const MOBILE_BREAKPOINT = 768
 
 export function useEdgeSwipe(onSwipe: () => void) {
   const startX = useRef(0)
   const startY = useRef(0)
-  const fired = useRef(false)
+  const startTime = useRef(0)
 
   useEffect(() => {
     function onTouchStart(e: TouchEvent) {
       const touch = e.touches[0]
       startX.current = touch.clientX
       startY.current = touch.clientY
-      fired.current = false
+      startTime.current = Date.now()
     }
 
-    function onTouchMove(e: TouchEvent) {
-      if (fired.current) return
+    function onTouchEnd(e: TouchEvent) {
       if (window.innerWidth >= MOBILE_BREAKPOINT) return
 
-      const touch = e.touches[0]
+      const touch = e.changedTouches[0]
       const dx = touch.clientX - startX.current
       const dy = Math.abs(touch.clientY - startY.current)
+      const elapsed = (Date.now() - startTime.current) / 1000 // seconds
 
       // Must be moving right
-      if (dx <= 0) return
+      if (dx < MIN_DISTANCE) return
 
       // Must be predominantly horizontal
-      if (dy * DIRECTION_RATIO > dx) return
+      if (dx < dy * DIRECTION_RATIO) return
 
-      // Must travel far enough
-      if (dx >= SWIPE_THRESHOLD) {
-        fired.current = true
-        onSwipe()
-      }
+      // Must be fast enough (intentional flick, not slow drag)
+      const velocity = dx / elapsed
+      if (velocity < MIN_VELOCITY) return
+
+      onSwipe()
     }
 
-    document.addEventListener("touchstart", onTouchStart, { passive: true })
-    document.addEventListener("touchmove", onTouchMove, { passive: true })
+    // Use capture phase to get coordinates before scroll containers interfere
+    document.addEventListener("touchstart", onTouchStart, { capture: true, passive: true })
+    document.addEventListener("touchend", onTouchEnd, { capture: true, passive: true })
 
     return () => {
-      document.removeEventListener("touchstart", onTouchStart)
-      document.removeEventListener("touchmove", onTouchMove)
+      document.removeEventListener("touchstart", onTouchStart, { capture: true } as EventListenerOptions)
+      document.removeEventListener("touchend", onTouchEnd, { capture: true } as EventListenerOptions)
     }
   }, [onSwipe])
 }
