@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Card, Button } from "shared-components"
 import {
   CreditCard,
@@ -46,23 +46,33 @@ export function BillingPanel() {
   const [error, setError] = useState<string | null>(null)
   const [isPortalLoading, setIsPortalLoading] = useState(false)
 
-  useEffect(() => {
-    fetchBillingStatus()
-  }, [])
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const fetchBillingStatus = async () => {
+  const fetchBillingStatus = useCallback(async (silent = false) => {
     try {
       const res = await fetch("/api/billing/status")
       if (!res.ok) throw new Error("Failed to fetch billing status")
       const data = await res.json()
       setBilling(data)
+      if (!silent) setError(null)
     } catch (err) {
-      setError("Unable to load billing information")
-      console.error("Billing fetch error:", err)
+      if (!silent) {
+        setError("Unable to load billing information")
+        console.error("Billing fetch error:", err)
+      }
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
+
+  // Initial fetch + 5s polling for live updates
+  useEffect(() => {
+    fetchBillingStatus()
+    intervalRef.current = setInterval(() => fetchBillingStatus(true), 5000)
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
+  }, [fetchBillingStatus])
 
   const openStripePortal = async () => {
     setIsPortalLoading(true)
