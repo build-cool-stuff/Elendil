@@ -3,6 +3,8 @@ import { auth } from '@clerk/nextjs/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { getStripe } from '@/lib/stripe/client'
 
+export const maxDuration = 30
+
 /**
  * POST /api/billing/portal
  * Creates a Stripe Customer Portal session and returns the URL.

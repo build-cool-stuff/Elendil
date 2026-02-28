@@ -3,6 +3,8 @@ import { auth } from '@clerk/nextjs/server'
 import { createServerClient } from '@/lib/supabase/server'
 import { getStripe } from '@/lib/stripe/client'
 
+export const maxDuration = 30
+
 const PRICE_PER_SCAN_AUD = 20
 const SPEND_CAP_AUD = 5000
 
