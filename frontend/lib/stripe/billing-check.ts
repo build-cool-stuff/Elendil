@@ -6,16 +6,16 @@
  * degrade to a basic QR redirect.
  *
  * Degraded when:
- * - billing_active is false (no subscription), OR
+ * - billing_active is false AND not in grace period
  * - accrued spend in current period >= $5,000 AUD
+ *
+ * Grace period: 24 hours after first payment failure. Premium features
+ * continue working, but user sees urgent warning. After grace expires,
+ * degraded_since is set and features shut off.
  *
  * Degraded mode: QR code still redirects to destination, still records
  * basic scan (device, Vercel geo), but no Meta Pixel, no CAPI, no
  * BigDataCloud, no suburb lookup.
- *
- * NOTE: This is only called when billing is active. When billing_active
- * is false, the scan flow runs normally (all features enabled) — billing
- * degradation only kicks in when a paying user exceeds the spend cap.
  */
 
 import { createEdgeClient } from '@/lib/edge/supabase-edge'
@@ -29,6 +29,10 @@ export interface BillingCheckResult {
   billing_active: boolean
   /** true = no premium features (Meta, BigDataCloud, suburb lookup) */
   degraded: boolean
+  /** true = premium still works but payment is overdue */
+  in_grace_period: boolean
+  /** when grace period expires (ISO string) */
+  grace_period_end: string | null
   scan_count: number
   accrued_spend_aud: number
 }
@@ -41,25 +45,28 @@ export async function checkBillingFromCampaign(campaignData: {
   user_id: string
   billing_active: boolean
   stripe_customer_id: string | null
+  grace_period_end: string | null
 }): Promise<BillingCheckResult> {
-  const { billing_active } = campaignData
+  const { billing_active, grace_period_end } = campaignData
 
-  // If billing is not active, no degradation — all features work
-  // (degradation only applies to paying users who exceed the spend cap)
+  // If billing is not active, check grace period
   if (!billing_active) {
+    const inGrace = !!(grace_period_end && new Date(grace_period_end) > new Date())
+
     return {
       billing_active: false,
-      degraded: false,
+      degraded: !inGrace,
+      in_grace_period: inGrace,
+      grace_period_end,
       scan_count: 0,
       accrued_spend_aud: 0,
     }
   }
 
-  // Count actual scans in current billing period (calendar month)
+  // Billing is active — check spend cap
   const periodStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
   const supabase = createEdgeClient()
 
-  // Get user's campaigns, then count scans directly
   const { data: campaigns } = await supabase
     .from('campaigns')
     .select('id')
@@ -70,6 +77,8 @@ export async function checkBillingFromCampaign(campaignData: {
     return {
       billing_active: true,
       degraded: false,
+      in_grace_period: false,
+      grace_period_end: null,
       scan_count: 0,
       accrued_spend_aud: 0,
     }
@@ -89,6 +98,8 @@ export async function checkBillingFromCampaign(campaignData: {
     return {
       billing_active: true,
       degraded: false,
+      in_grace_period: false,
+      grace_period_end: null,
       scan_count: 0,
       accrued_spend_aud: 0,
     }
@@ -105,6 +116,8 @@ export async function checkBillingFromCampaign(campaignData: {
   return {
     billing_active: true,
     degraded,
+    in_grace_period: false,
+    grace_period_end: null,
     scan_count: scanCount,
     accrued_spend_aud: accruedSpendAud,
   }

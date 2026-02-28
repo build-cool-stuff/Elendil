@@ -2,7 +2,10 @@
  * Edge Redirect Handler for QR Code Tracking
  *
  * This is the primary entry point for QR code scans.
- * Handles campaign lookup, geo extraction, scan recording, and Meta CAPI.
+ * Handles campaign lookup, billing gate, geo extraction, scan recording, and Meta CAPI.
+ *
+ * Premium features (bridge, CAPI, suburb lookup) require billing_active or grace period.
+ * Degraded mode: basic scan record + 302 redirect only.
  *
  * Route: /go/[slug]
  * Runtime: Edge (Vercel Edge Functions)
@@ -28,7 +31,6 @@ import {
   hasVisitedCampaign,
   buildTrackingCookies,
   calculateCookieExpiry,
-  parseCookies,
 } from '@/lib/edge/cookies'
 import { hashIPAddress, generateEventId } from '@/lib/edge/encryption'
 import {
@@ -47,26 +49,29 @@ export async function GET(
   const campaign = await lookupCampaign(slug)
 
   if (!campaign) {
-    // Campaign not found or inactive - redirect to home
     console.log(`[Edge] Campaign not found: ${slug}`)
     return NextResponse.redirect(new URL('/', request.url))
   }
 
-  // 2. Extract request data
+  // 2. Billing gate — determine if premium features are available
+  const inGrace = !!(campaign.grace_period_end && new Date(campaign.grace_period_end) > new Date())
+  const isPremium = campaign.billing_active || inGrace
+
+  // 3. Extract request data
   const headers = request.headers
   const cookieHeader = headers.get('cookie') || ''
   const userAgent = headers.get('user-agent') || ''
   const referer = headers.get('referer')
 
-  // 3. Extract geo data from Vercel headers
+  // 4. Extract geo data from Vercel headers
   const geo = extractGeoFromHeaders(headers)
   const clientIP = extractClientIP(headers)
 
-  // 4. Lookup suburb by postcode for accurate data
+  // 5. Suburb lookup — only for premium users
   let suburb: string | null = geo.city
   let state: string | null = getStateName(geo.countryRegion)
 
-  if (geo.postalCode && isValidAustralianPostcode(geo.postalCode)) {
+  if (isPremium && geo.postalCode && isValidAustralianPostcode(geo.postalCode)) {
     const suburbData = await lookupSuburbByPostcode(geo.postalCode)
     if (suburbData) {
       suburb = suburbData.name
@@ -74,7 +79,7 @@ export async function GET(
     }
   }
 
-  // 5. Parse device info
+  // 6. Parse device info
   const device = parseUserAgent(userAgent)
 
   // Skip bot tracking
@@ -83,21 +88,23 @@ export async function GET(
     return NextResponse.redirect(campaign.destination_url, { status: 302 })
   }
 
-  // 6. Cookie management
+  // 7. Cookie management
   const { visitorId, isNew: isFirstScan } = getOrCreateVisitorId(cookieHeader)
   const isFirstCampaignVisit = !hasVisitedCampaign(cookieHeader, campaign.id)
   const cookieExpiry = calculateCookieExpiry(campaign.cookie_duration_days)
 
-  // 7. Generate event ID for Meta deduplication
+  // 8. Generate event ID for Meta deduplication
   const eventId = generateEventId()
 
-  // 8. Hash IP for privacy
+  // 9. Hash IP for privacy
   const ipHash = await hashIPAddress(clientIP)
 
-  // 9. Determine redirect behavior
-  // If bridge is enabled, the bridge page handles CAPI + precision geo tracking
-  // If bridge is disabled, we fire CAPI here and record scan with basic Vercel geo
-  if (campaign.bridge_enabled) {
+  // 10. Determine redirect behavior based on billing + bridge
+  // Premium + bridge: redirect to bridge page for CAPI + precision geo
+  // Premium + no bridge: fire CAPI here, record scan with Vercel geo
+  // Degraded: basic scan record + direct redirect (no CAPI, no bridge)
+
+  if (isPremium && campaign.bridge_enabled) {
     // Redirect to bridge page with event context
     const isBridgeFirstScan = isFirstScan || isFirstCampaignVisit
     const bridgeUrl = new URL(`/go/${slug}/bridge`, request.url)
@@ -106,7 +113,6 @@ export async function GET(
       bridgeUrl.searchParams.set('first', '1')
     }
 
-    // Use 307 Temporary Redirect to prevent browser caching of the redirect
     const response = NextResponse.redirect(bridgeUrl, { status: 307 })
 
     const cookies = buildTrackingCookies({
@@ -126,10 +132,10 @@ export async function GET(
     return response
   }
 
-  // Direct redirect without bridge - fire CAPI and record scan here with Vercel geo
+  // Direct redirect path (premium without bridge, or degraded)
 
-  // Fire Meta CAPI event for direct redirects (async, non-blocking)
-  if (campaign.meta_pixel_id) {
+  // Fire Meta CAPI — only for premium users
+  if (isPremium && campaign.meta_pixel_id) {
     const fbCookies = extractFacebookCookies(cookieHeader)
 
     fireQRCodeScanEvent({
@@ -157,6 +163,7 @@ export async function GET(
     })
   }
 
+  // Record basic scan (always — even when degraded)
   recordScan({
     campaign_id: campaign.id,
     visitor_id: visitorId,
@@ -177,9 +184,10 @@ export async function GET(
     meta_event_id: eventId,
   })
 
-  // Fire-and-forget: emit billing meter event (only for first scans — repeat visitors aren't billed)
+  // Emit billing meter event — only for billable first scans with active billing
+  // Don't emit during grace period (don't charge on a failed payment)
   const isBillableScan = isFirstScan || isFirstCampaignVisit
-  if (isBillableScan && campaign.billing_active && campaign.stripe_customer_id) {
+  if (isBillableScan && campaign.billing_active && !inGrace && campaign.stripe_customer_id) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     void fetch(`${appUrl}/api/billing/emit-usage`, {
       method: 'POST',
@@ -209,7 +217,8 @@ export async function GET(
   })
 
   const elapsed = Date.now() - startTime
-  console.log(`[Edge] Direct redirect: ${slug} -> ${campaign.destination_url} (${elapsed}ms)`)
+  const mode = isPremium ? 'premium' : 'degraded'
+  console.log(`[Edge] Direct redirect (${mode}): ${slug} -> ${campaign.destination_url} (${elapsed}ms)`)
 
   return response
 }

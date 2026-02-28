@@ -38,6 +38,13 @@ interface BillingStatus {
     currency: string
     period_end: number
   } | null
+  grace_period: {
+    active: boolean
+    ends_at: string
+    hours_remaining: number
+  } | null
+  degraded_since: string | null
+  missed_leads_count: number
 }
 
 export function BillingPanel() {
@@ -226,6 +233,67 @@ export function BillingPanel() {
                   {isPortalLoading ? "Opening..." : "Reactivate Subscription"}
                 </Button>
               )}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Grace period warning */}
+      {billing.grace_period?.active && (
+        <Card variant="glass" className="p-4 border border-orange-500/30">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center shrink-0">
+              <AlertTriangle className="h-5 w-5 text-orange-400" />
+            </div>
+            <div>
+              <p className="text-orange-300 font-medium">Payment failed — grace period active</p>
+              <p className="text-orange-300/70 text-sm mt-1">
+                Premium features will be disabled in{" "}
+                <span className="font-semibold text-orange-200">
+                  {billing.grace_period.hours_remaining !== null
+                    ? billing.grace_period.hours_remaining > 1
+                      ? `${Math.ceil(billing.grace_period.hours_remaining)} hours`
+                      : "less than 1 hour"
+                    : "soon"}
+                </span>
+                . Update your payment method to avoid losing tracking data.
+              </p>
+              <Button
+                variant="glass"
+                className="mt-3 h-9 px-4 bg-orange-500/20 hover:bg-orange-500/30 text-sm"
+                onClick={openStripePortal}
+                disabled={isPortalLoading}
+              >
+                {isPortalLoading ? "Opening..." : "Update Payment Method"}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Missed leads counter */}
+      {billing.degraded_since && billing.missed_leads_count > 0 && (
+        <Card variant="glass" className="p-4 border border-red-500/30">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center shrink-0">
+              <TrendingUp className="h-5 w-5 text-red-400" />
+            </div>
+            <div>
+              <p className="text-red-300 font-medium">
+                {billing.missed_leads_count} lead{billing.missed_leads_count !== 1 ? "s" : ""} missed since {formatDate(billing.degraded_since)}
+              </p>
+              <p className="text-red-300/70 text-sm mt-1">
+                These visitors scanned your QR codes while premium tracking was disabled.
+                You missed Meta Pixel events, Conversions API data, and precision geolocation for these leads.
+              </p>
+              <Button
+                variant="glass"
+                className="mt-3 h-9 px-4 bg-red-500/20 hover:bg-red-500/30 text-sm"
+                onClick={openStripePortal}
+                disabled={isPortalLoading}
+              >
+                {isPortalLoading ? "Opening..." : "Reactivate Now"}
+              </Button>
             </div>
           </div>
         </Card>

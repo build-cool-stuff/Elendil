@@ -60,25 +60,42 @@ export async function POST(
     return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
   }
 
+  // Billing gate: check if premium features are available.
+  // If grace expired between redirect and this call, skip premium features
+  // but still record a basic scan (don't silently drop it).
+  const inGrace = !!(campaign.grace_period_end && new Date(campaign.grace_period_end) > new Date())
+  const isPremium = campaign.billing_active || inGrace
+
   // 2. Extract request data
   const headers = request.headers
   const cookieHeader = headers.get('cookie') || ''
   const userAgent = headers.get('user-agent') || ''
   const clientIP = extractClientIP(headers)
 
-  // 3. Get precision geolocation from BigDataCloud
-  const precisionGeo = await fetchPrecisionGeo(clientIP)
-
-  // 4. Merge with Vercel headers as fallback
+  // 3. Get geolocation — precision only for premium users
   const vercelGeo = extractGeoFromHeaders(headers)
-  const finalGeo = mergeWithVercelFallback(precisionGeo, {
-    city: vercelGeo.city,
-    postalCode: vercelGeo.postalCode,
-    countryRegion: vercelGeo.countryRegion,
-    country: vercelGeo.country,
-    latitude: vercelGeo.latitude,
-    longitude: vercelGeo.longitude,
-  })
+  let finalGeo
+  if (isPremium) {
+    const precisionGeo = await fetchPrecisionGeo(clientIP)
+    finalGeo = mergeWithVercelFallback(precisionGeo, {
+      city: vercelGeo.city,
+      postalCode: vercelGeo.postalCode,
+      countryRegion: vercelGeo.countryRegion,
+      country: vercelGeo.country,
+      latitude: vercelGeo.latitude,
+      longitude: vercelGeo.longitude,
+    })
+  } else {
+    // Degraded: use Vercel headers only (no BigDataCloud API call)
+    finalGeo = mergeWithVercelFallback(null, {
+      city: vercelGeo.city,
+      postalCode: vercelGeo.postalCode,
+      countryRegion: vercelGeo.countryRegion,
+      country: vercelGeo.country,
+      latitude: vercelGeo.latitude,
+      longitude: vercelGeo.longitude,
+    })
+  }
 
   // 5. Parse device info
   const device = parseUserAgent(userAgent)
@@ -118,8 +135,8 @@ export async function POST(
     `source=${finalGeo.geo_source}`
   )
 
-  // 10. Fire Meta CAPI event (async, non-blocking)
-  if (campaign.meta_pixel_id) {
+  // 10. Fire Meta CAPI event (async, non-blocking) — premium only
+  if (isPremium && campaign.meta_pixel_id) {
     const fbCookies = extractFacebookCookies(cookieHeader)
 
     fireQRCodeScanEvent({
@@ -214,7 +231,7 @@ export async function POST(
 
   // 12. Fire-and-forget: emit billing meter event (only for first scans — repeat visitors aren't billed)
   const isBillableScan = isFirstScan
-  if (isBillableScan && campaign.billing_active && campaign.stripe_customer_id) {
+  if (isBillableScan && campaign.billing_active && !inGrace && campaign.stripe_customer_id) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     void fetch(`${appUrl}/api/billing/emit-usage`, {
       method: 'POST',

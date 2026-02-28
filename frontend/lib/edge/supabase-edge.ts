@@ -65,6 +65,9 @@ export interface EdgeCampaignData {
   // Billing fields (piggyback on existing campaign+user join)
   billing_active: boolean
   stripe_customer_id: string | null
+  // Grace period fields
+  grace_period_end: string | null
+  degraded_since: string | null
 }
 
 /**
@@ -102,6 +105,8 @@ export async function lookupCampaign(
           meta_encryption_iv,
           stripe_customer_id,
           billing_active,
+          grace_period_end,
+          degraded_since,
           meta_integrations (
             pixel_id,
             access_token,
@@ -166,6 +171,9 @@ export async function lookupCampaign(
     // Billing fields
     billing_active: userData?.billing_active ?? false,
     stripe_customer_id: userData?.stripe_customer_id || null,
+    // Grace period fields
+    grace_period_end: userData?.grace_period_end || null,
+    degraded_since: userData?.degraded_since || null,
   }
 }
 

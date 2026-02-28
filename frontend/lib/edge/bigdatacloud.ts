@@ -258,7 +258,7 @@ function isPrivateIP(ip: string): boolean {
  * Merge BigDataCloud data with Vercel headers as fallback
  */
 export function mergeWithVercelFallback(
-  bigDataCloud: PrecisionGeoData,
+  bigDataCloud: PrecisionGeoData | null,
   vercelData: {
     city?: string | null
     postalCode?: string | null
@@ -268,6 +268,29 @@ export function mergeWithVercelFallback(
     longitude?: number | null
   }
 ): PrecisionGeoData {
+  // No BigDataCloud data (e.g., degraded/non-premium) — use Vercel only
+  if (!bigDataCloud) {
+    return {
+      locality_name: vercelData.city || null,
+      city: vercelData.city || null,
+      postcode: vercelData.postalCode || null,
+      state: null,
+      state_code: vercelData.countryRegion || null,
+      country: vercelData.country || null,
+      country_code: vercelData.country || null,
+      latitude: vercelData.latitude || null,
+      longitude: vercelData.longitude || null,
+      confidence_radius_km: null,
+      geo_source: 'vercel',
+      isp_name: null,
+      network_type: null,
+      connection_type: null,
+      is_vpn: false,
+      is_proxy: false,
+      is_tor: false,
+    }
+  }
+
   // If BigDataCloud has high confidence, use it
   const confidence = getConfidenceLevel(bigDataCloud.confidence_radius_km)
 

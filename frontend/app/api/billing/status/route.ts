@@ -23,7 +23,7 @@ export async function GET() {
   // Get user with billing info
   const { data: user, error: userError } = await supabase
     .from('users')
-    .select('id, stripe_customer_id, billing_active')
+    .select('id, stripe_customer_id, billing_active, grace_period_end, degraded_since')
     .eq('clerk_id', clerkId)
     .single()
 
@@ -78,13 +78,19 @@ export async function GET() {
           .from('billing_subscriptions')
           .upsert(subRecord, { onConflict: 'stripe_subscription_id' })
 
-        // Update billing_active on user
+        // Update billing_active on user and clear degradation state
         if (isActive && !user.billing_active) {
           await supabase
             .from('users')
-            .update({ billing_active: true })
+            .update({
+              billing_active: true,
+              degraded_since: null,
+              grace_period_end: null,
+            })
             .eq('id', user.id)
           user.billing_active = true
+          user.degraded_since = null
+          user.grace_period_end = null
         }
 
         // Use the synced subscription for the response
@@ -147,10 +153,35 @@ export async function GET() {
     }
   }
 
+  // Grace period status
+  const inGrace = !!(user.grace_period_end && new Date(user.grace_period_end) > new Date())
+  let graceHoursRemaining: number | null = null
+  if (inGrace && user.grace_period_end) {
+    graceHoursRemaining = Math.max(0,
+      (new Date(user.grace_period_end).getTime() - Date.now()) / (1000 * 60 * 60)
+    )
+  }
+
+  // Count missed leads (scans since degradation started)
+  let missedLeadsCount = 0
+  if (user.degraded_since && campaignIds.length > 0) {
+    const { count: missedCount } = await supabase
+      .from('scans')
+      .select('*', { count: 'exact', head: true })
+      .in('campaign_id', campaignIds)
+      .gte('scanned_at', user.degraded_since)
+      .eq('is_first_scan', true)
+
+    missedLeadsCount = missedCount || 0
+  }
+
+  // Degraded if: billing inactive (and not in grace) OR spend cap reached
+  const degraded = (!user.billing_active && !inGrace) || accruedSpendAud >= SPEND_CAP_AUD
+
   return NextResponse.json({
     billing_active: user.billing_active,
     stripe_customer_id: user.stripe_customer_id,
-    degraded: !user.billing_active || accruedSpendAud >= SPEND_CAP_AUD,
+    degraded,
     subscription: subscription
       ? {
           id: subscription.stripe_subscription_id,
@@ -167,5 +198,14 @@ export async function GET() {
       price_per_scan_aud: PRICE_PER_SCAN_AUD,
     },
     upcoming_invoice: upcomingInvoice,
+    grace_period: inGrace
+      ? {
+          active: true,
+          ends_at: user.grace_period_end,
+          hours_remaining: graceHoursRemaining,
+        }
+      : null,
+    degraded_since: user.degraded_since,
+    missed_leads_count: missedLeadsCount,
   })
 }

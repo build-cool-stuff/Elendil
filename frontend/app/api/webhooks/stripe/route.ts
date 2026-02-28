@@ -8,6 +8,7 @@ export const maxDuration = 30
 /**
  * POST /api/webhooks/stripe
  * Handles Stripe webhook events for subscription lifecycle management.
+ * Includes grace period logic for payment failures.
  * Signature-verified, no auth required.
  */
 export async function POST(request: NextRequest) {
@@ -39,9 +40,6 @@ export async function POST(request: NextRequest) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
       console.log(`[Stripe] Checkout completed: ${session.id}, customer: ${session.customer}, subscription: ${session.subscription}`)
-
-      // The subscription.created event handles the actual DB updates,
-      // but we log completion for debugging
       break
     }
 
@@ -52,16 +50,14 @@ export async function POST(request: NextRequest) {
         ? subscription.customer
         : subscription.customer.id
 
-      // Look up user by stripe_customer_id to get user_id
       const { data: user, error: userError } = await supabase
         .from('users')
-        .select('id')
+        .select('id, grace_period_end')
         .eq('stripe_customer_id', customerId)
         .single()
 
       if (userError || !user) {
         console.error(`[Stripe] User not found for customer ${customerId}:`, userError?.message)
-        // Still return 200 so Stripe doesn't retry
         return NextResponse.json({ received: true, warning: 'user_not_found' })
       }
 
@@ -92,15 +88,31 @@ export async function POST(request: NextRequest) {
         console.error(`[Stripe] Failed to upsert subscription:`, upsertError)
       }
 
-      // Update billing_active flag on user
       const isActive = ['active', 'trialing'].includes(subscription.status)
+
+      // Build user update
+      const userUpdate: Record<string, unknown> = { billing_active: isActive }
+
+      if (isActive) {
+        // Subscription is active — clear any grace period / degraded state
+        userUpdate.grace_period_end = null
+        userUpdate.degraded_since = null
+      } else if (subscription.status === 'past_due' && !user.grace_period_end) {
+        // Subscription went past_due — set grace period if not already set
+        // (handles race with invoice.payment_failed)
+        const gracePeriodEnd = new Date()
+        gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 1) // 24 hours
+        userUpdate.grace_period_end = gracePeriodEnd.toISOString()
+        console.log(`[Stripe] Grace period set via subscription.updated (past_due): ${customerId}`)
+      }
+
       const { error: updateError } = await supabase
         .from('users')
-        .update({ billing_active: isActive })
+        .update(userUpdate)
         .eq('stripe_customer_id', customerId)
 
       if (updateError) {
-        console.error(`[Stripe] Failed to update billing_active:`, updateError)
+        console.error(`[Stripe] Failed to update user:`, updateError)
       }
 
       console.log(`[Stripe] Subscription ${subscription.status}: ${subscription.id}, user: ${user.id}, billing_active: ${isActive}`)
@@ -122,7 +134,6 @@ export async function POST(request: NextRequest) {
         })
         .eq('stripe_subscription_id', subscription.id)
 
-      // Check if user has any other active subscriptions
       const { data: user } = await supabase
         .from('users')
         .select('id')
@@ -137,9 +148,14 @@ export async function POST(request: NextRequest) {
           .in('status', ['active', 'trialing'])
 
         if (!count || count === 0) {
+          // No active subscriptions — immediate degradation (no grace for voluntary cancel)
           await supabase
             .from('users')
-            .update({ billing_active: false })
+            .update({
+              billing_active: false,
+              degraded_since: new Date().toISOString(),
+              grace_period_end: null,
+            })
             .eq('stripe_customer_id', customerId)
         }
       }
@@ -150,7 +166,23 @@ export async function POST(request: NextRequest) {
 
     case 'invoice.paid': {
       const invoice = event.data.object as Stripe.Invoice
-      console.log(`[Stripe] Invoice paid: ${invoice.id}, amount: ${invoice.amount_paid}`)
+      const customerId = typeof invoice.customer === 'string'
+        ? invoice.customer
+        : (invoice.customer as Stripe.Customer)?.id
+
+      // Payment succeeded — clear grace period and degraded state
+      if (customerId) {
+        await supabase
+          .from('users')
+          .update({
+            billing_active: true,
+            grace_period_end: null,
+            degraded_since: null,
+          })
+          .eq('stripe_customer_id', customerId)
+      }
+
+      console.log(`[Stripe] Invoice paid: ${invoice.id}, amount: ${invoice.amount_paid}, grace cleared`)
       break
     }
 
@@ -158,7 +190,7 @@ export async function POST(request: NextRequest) {
       const invoice = event.data.object as Stripe.Invoice
       const customerId = typeof invoice.customer === 'string'
         ? invoice.customer
-        : invoice.customer?.id
+        : (invoice.customer as Stripe.Customer)?.id
 
       console.error(`[Stripe] Invoice payment failed: ${invoice.id}, customer: ${customerId}`)
 
@@ -174,6 +206,26 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString(),
           })
           .eq('stripe_subscription_id', subId)
+      }
+
+      // Set 1-day grace period — only on first failure (don't reset clock on retries)
+      if (customerId) {
+        const { data: user } = await supabase
+          .from('users')
+          .select('grace_period_end')
+          .eq('stripe_customer_id', customerId)
+          .single()
+
+        if (user && !user.grace_period_end) {
+          const gracePeriodEnd = new Date()
+          gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 1) // 24 hours
+          await supabase
+            .from('users')
+            .update({ grace_period_end: gracePeriodEnd.toISOString() })
+            .eq('stripe_customer_id', customerId)
+
+          console.log(`[Stripe] Grace period set: ${customerId}, expires: ${gracePeriodEnd.toISOString()}`)
+        }
       }
       break
     }
