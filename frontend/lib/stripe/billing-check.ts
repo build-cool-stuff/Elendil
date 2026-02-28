@@ -12,6 +12,10 @@
  * Degraded mode: QR code still redirects to destination, still records
  * basic scan (device, Vercel geo), but no Meta Pixel, no CAPI, no
  * BigDataCloud, no suburb lookup.
+ *
+ * NOTE: This is only called when billing is active. When billing_active
+ * is false, the scan flow runs normally (all features enabled) — billing
+ * degradation only kicks in when a paying user exceeds the spend cap.
  */
 
 import { createEdgeClient } from '@/lib/edge/supabase-edge'
@@ -37,23 +41,22 @@ export async function checkBillingFromCampaign(campaignData: {
   user_id: string
   billing_active: boolean
   stripe_customer_id: string | null
-  current_period_start: string | null
 }): Promise<BillingCheckResult> {
-  const { billing_active, current_period_start } = campaignData
+  const { billing_active } = campaignData
 
-  // If billing is not active, degrade immediately
+  // If billing is not active, no degradation — all features work
+  // (degradation only applies to paying users who exceed the spend cap)
   if (!billing_active) {
     return {
       billing_active: false,
-      degraded: true,
+      degraded: false,
       scan_count: 0,
       accrued_spend_aud: 0,
     }
   }
 
-  // Count usage events in current billing period
-  const periodStart = current_period_start
-    || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+  // Count usage events in current billing period (calendar month)
+  const periodStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
   const supabase = createEdgeClient()
 
   const { count, error } = await supabase

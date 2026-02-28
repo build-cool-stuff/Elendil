@@ -11,8 +11,7 @@
 export const runtime = 'edge'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createEdgeClient, lookupCampaign, type EdgeCampaignData } from '@/lib/edge/supabase-edge'
-import { checkBillingFromCampaign } from '@/lib/stripe/billing-check'
+import { createEdgeClient, lookupCampaign } from '@/lib/edge/supabase-edge'
 import { extractClientIP, extractGeoFromHeaders } from '@/lib/edge/geo'
 import { parseUserAgent } from '@/lib/edge/user-agent'
 import {
@@ -59,15 +58,6 @@ export async function POST(
 
   if (!campaign) {
     return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
-  }
-
-  // 1b. Billing gate — degraded users should never reach the bridge/track endpoint,
-  // but guard it in case they do (e.g. cached bridge page)
-  const billing = await checkBillingFromCampaign(campaign)
-  if (billing.degraded) {
-    const reason = !billing.billing_active ? 'inactive' : `spend_cap ($${billing.accrued_spend_aud})`
-    console.log(`[Track] Billing degraded (${reason}), skipping: ${slug}`)
-    return NextResponse.json({ success: true, skipped: true, reason: 'billing_degraded' })
   }
 
   // 2. Extract request data
@@ -218,7 +208,7 @@ export async function POST(
     }
   })()
 
-  // 12. Fire-and-forget: emit billing meter event
+  // 12. Fire-and-forget: emit billing meter event (only if billing is active)
   if (campaign.billing_active && campaign.stripe_customer_id) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     void fetch(`${appUrl}/api/billing/emit-usage`, {

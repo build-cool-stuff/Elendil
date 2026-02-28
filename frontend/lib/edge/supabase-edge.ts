@@ -65,7 +65,6 @@ export interface EdgeCampaignData {
   // Billing fields (piggyback on existing campaign+user join)
   billing_active: boolean
   stripe_customer_id: string | null
-  current_period_start: string | null
 }
 
 /**
@@ -109,11 +108,6 @@ export async function lookupCampaign(
             encrypted_access_token,
             encryption_iv,
             status
-          ),
-          billing_subscriptions (
-            current_period_start,
-            current_period_end,
-            status
           )
         )
       `)
@@ -153,10 +147,6 @@ export async function lookupCampaign(
   const effectivePixelId = userPixelId || (isMetaActive ? metaIntegration?.pixel_id : null)
   const hasUserToken = !!(userEncryptedToken && userEncryptionIv)
 
-  // Extract billing subscription data (active/trialing sub with latest period)
-  const activeSub = (userData?.billing_subscriptions as any[] || [])
-    .find((s: any) => ['active', 'trialing'].includes(s.status))
-
   return {
     id: data.id,
     name: data.name,
@@ -176,7 +166,6 @@ export async function lookupCampaign(
     // Billing fields
     billing_active: userData?.billing_active ?? false,
     stripe_customer_id: userData?.stripe_customer_id || null,
-    current_period_start: activeSub?.current_period_start || null,
   }
 }
 

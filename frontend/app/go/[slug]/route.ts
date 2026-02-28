@@ -15,9 +15,7 @@ import {
   lookupCampaign,
   lookupSuburbByPostcode,
   recordScan,
-  type EdgeCampaignData,
 } from '@/lib/edge/supabase-edge'
-import { checkBillingFromCampaign } from '@/lib/stripe/billing-check'
 import {
   extractGeoFromHeaders,
   extractClientIP,
@@ -53,67 +51,6 @@ export async function GET(
     console.log(`[Edge] Campaign not found: ${slug}`)
     return NextResponse.redirect(new URL('/', request.url))
   }
-
-  // 1b. Billing gate — determine if premium features are available
-  const billing = await checkBillingFromCampaign(campaign)
-
-  // DEGRADED MODE: billing inactive or $5000+ AUD accrued
-  // QR code still redirects, records basic scan (device + Vercel geo only)
-  // No Meta Pixel, no CAPI, no BigDataCloud, no suburb lookup, no bridge
-  if (billing.degraded) {
-    const reason = !billing.billing_active ? 'inactive' : `spend_cap ($${billing.accrued_spend_aud})`
-    console.log(`[Edge] Billing degraded (${reason}), basic redirect: ${slug}`)
-
-    const headers = request.headers
-    const userAgent = headers.get('user-agent') || ''
-    const device = parseUserAgent(userAgent)
-
-    if (!device.is_bot) {
-      const cookieHeader = headers.get('cookie') || ''
-      const geo = extractGeoFromHeaders(headers)
-      const clientIP = extractClientIP(headers)
-      const { visitorId, isNew: isFirstScan } = getOrCreateVisitorId(cookieHeader)
-      const isFirstCampaignVisit = !hasVisitedCampaign(cookieHeader, campaign.id)
-      const cookieExpiry = calculateCookieExpiry(campaign.cookie_duration_days)
-      const ipHash = await hashIPAddress(clientIP)
-
-      recordScan({
-        campaign_id: campaign.id,
-        visitor_id: visitorId,
-        ip_address_hash: ipHash,
-        latitude: geo.latitude,
-        longitude: geo.longitude,
-        suburb: geo.city,
-        postcode: geo.postalCode,
-        state: getStateName(geo.countryRegion),
-        country: geo.country || 'AU',
-        user_agent: userAgent,
-        device_type: device.device_type,
-        browser: device.browser,
-        os: device.os,
-        referrer: headers.get('referer'),
-        cookie_expires_at: cookieExpiry.toISOString(),
-        is_first_scan: isFirstScan || isFirstCampaignVisit,
-        meta_event_id: null,
-      })
-
-      const response = NextResponse.redirect(campaign.destination_url, { status: 302 })
-      const cookies = buildTrackingCookies({
-        visitorId,
-        campaignId: campaign.id,
-        eventId: '',
-        expiresAt: cookieExpiry,
-      })
-      cookies.forEach((cookie) => {
-        response.headers.append('Set-Cookie', cookie)
-      })
-      return response
-    }
-
-    return NextResponse.redirect(campaign.destination_url, { status: 302 })
-  }
-
-  // FULL MODE: billing active and under spend cap — all premium features enabled
 
   // 2. Extract request data
   const headers = request.headers
@@ -236,7 +173,7 @@ export async function GET(
     meta_event_id: eventId,
   })
 
-  // Fire-and-forget: emit billing meter event
+  // Fire-and-forget: emit billing meter event (only if billing is active)
   if (campaign.billing_active && campaign.stripe_customer_id) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     void fetch(`${appUrl}/api/billing/emit-usage`, {
