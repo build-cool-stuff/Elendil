@@ -3,6 +3,8 @@ import Stripe from 'stripe'
 import { getStripe } from '@/lib/stripe/client'
 import { createServerClient } from '@/lib/supabase/server'
 
+export const maxDuration = 30
+
 /**
  * POST /api/webhooks/stripe
  * Handles Stripe webhook events for subscription lifecycle management.
@@ -34,6 +36,15 @@ export async function POST(request: NextRequest) {
   const supabase = createServerClient()
 
   switch (event.type) {
+    case 'checkout.session.completed': {
+      const session = event.data.object as Stripe.Checkout.Session
+      console.log(`[Stripe] Checkout completed: ${session.id}, customer: ${session.customer}, subscription: ${session.subscription}`)
+
+      // The subscription.created event handles the actual DB updates,
+      // but we log completion for debugging
+      break
+    }
+
     case 'customer.subscription.created':
     case 'customer.subscription.updated': {
       const subscription = event.data.object as Stripe.Subscription
@@ -41,11 +52,25 @@ export async function POST(request: NextRequest) {
         ? subscription.customer
         : subscription.customer.id
 
+      // Look up user by stripe_customer_id to get user_id
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('stripe_customer_id', customerId)
+        .single()
+
+      if (userError || !user) {
+        console.error(`[Stripe] User not found for customer ${customerId}:`, userError?.message)
+        // Still return 200 so Stripe doesn't retry
+        return NextResponse.json({ received: true, warning: 'user_not_found' })
+      }
+
       // Upsert billing subscription
-      await supabase
+      const { error: upsertError } = await supabase
         .from('billing_subscriptions')
         .upsert(
           {
+            user_id: user.id,
             stripe_subscription_id: subscription.id,
             stripe_price_id: subscription.items.data[0]?.price?.id || null,
             status: subscription.status,
@@ -63,14 +88,22 @@ export async function POST(request: NextRequest) {
           { onConflict: 'stripe_subscription_id' }
         )
 
+      if (upsertError) {
+        console.error(`[Stripe] Failed to upsert subscription:`, upsertError)
+      }
+
       // Update billing_active flag on user
       const isActive = ['active', 'trialing'].includes(subscription.status)
-      await supabase
+      const { error: updateError } = await supabase
         .from('users')
         .update({ billing_active: isActive })
         .eq('stripe_customer_id', customerId)
 
-      console.log(`[Stripe] Subscription ${subscription.status}: ${subscription.id}`)
+      if (updateError) {
+        console.error(`[Stripe] Failed to update billing_active:`, updateError)
+      }
+
+      console.log(`[Stripe] Subscription ${subscription.status}: ${subscription.id}, user: ${user.id}, billing_active: ${isActive}`)
       break
     }
 
@@ -90,17 +123,25 @@ export async function POST(request: NextRequest) {
         .eq('stripe_subscription_id', subscription.id)
 
       // Check if user has any other active subscriptions
-      const { count } = await supabase
-        .from('billing_subscriptions')
-        .select('*', { count: 'exact', head: true })
-        .eq('stripe_subscription_id', subscription.id)
-        .in('status', ['active', 'trialing'])
+      const { data: user } = await supabase
+        .from('users')
+        .select('id')
+        .eq('stripe_customer_id', customerId)
+        .single()
 
-      if (!count || count === 0) {
-        await supabase
-          .from('users')
-          .update({ billing_active: false })
-          .eq('stripe_customer_id', customerId)
+      if (user) {
+        const { count } = await supabase
+          .from('billing_subscriptions')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .in('status', ['active', 'trialing'])
+
+        if (!count || count === 0) {
+          await supabase
+            .from('users')
+            .update({ billing_active: false })
+            .eq('stripe_customer_id', customerId)
+        }
       }
 
       console.log(`[Stripe] Subscription canceled: ${subscription.id}`)
@@ -121,7 +162,6 @@ export async function POST(request: NextRequest) {
 
       console.error(`[Stripe] Invoice payment failed: ${invoice.id}, customer: ${customerId}`)
 
-      // Update subscription status to past_due if applicable
       if (invoice.subscription) {
         const subId = typeof invoice.subscription === 'string'
           ? invoice.subscription
