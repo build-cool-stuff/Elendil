@@ -1,70 +1,66 @@
 import { useEffect, useRef } from "react"
 
 /**
- * Detects a left-edge swipe gesture to open a mobile drawer.
+ * Detects a left-to-right swipe anywhere on screen to open a mobile drawer.
  *
- * Why edge-swipe: Mobile UIs have a spatial model where the menu lives
- * on the left. Pulling from the left edge mimics physically sliding a
- * drawer open — the same pattern used by iOS (UIScreenEdgePanGestureRecognizer)
- * and Android's Material navigation drawer.
+ * Works from any starting position — no edge zone restriction.
+ * Uses three signals to distinguish an intentional menu-open gesture
+ * from normal scrolling or tapping:
  *
- * The gesture only activates when:
- * 1. Touch starts within EDGE_ZONE (30px) of the left screen edge
- * 2. Horizontal movement exceeds SWIPE_THRESHOLD (50px)
- * 3. Movement is predominantly horizontal (not a vertical scroll)
- * 4. Screen width is below MOBILE_BREAKPOINT (768px / md)
+ * 1. Direction: must be left-to-right (positive dx)
+ * 2. Ratio: horizontal distance must be ≥2x vertical distance
+ *    (filters out diagonal scrolls and vertical flicks)
+ * 3. Distance: must travel at least 80px horizontally
+ *    (filters out taps and small adjustments)
+ *
+ * Only activates below Tailwind's md breakpoint (768px).
+ * All listeners are passive to avoid blocking scroll performance.
  */
 
-const EDGE_ZONE = 30         // px from left edge to start tracking
-const SWIPE_THRESHOLD = 50   // px of horizontal movement to trigger
-const MOBILE_BREAKPOINT = 768 // matches Tailwind's md: breakpoint
+const SWIPE_THRESHOLD = 80    // px of horizontal movement to trigger
+const DIRECTION_RATIO = 2     // horizontal must be Nx vertical
+const MOBILE_BREAKPOINT = 768 // matches Tailwind md:
 
 export function useEdgeSwipe(onSwipe: () => void) {
-  const tracking = useRef(false)
   const startX = useRef(0)
   const startY = useRef(0)
+  const fired = useRef(false)
 
   useEffect(() => {
     function onTouchStart(e: TouchEvent) {
-      if (window.innerWidth >= MOBILE_BREAKPOINT) return
       const touch = e.touches[0]
-      if (touch.clientX <= EDGE_ZONE) {
-        tracking.current = true
-        startX.current = touch.clientX
-        startY.current = touch.clientY
-      }
+      startX.current = touch.clientX
+      startY.current = touch.clientY
+      fired.current = false
     }
 
     function onTouchMove(e: TouchEvent) {
-      if (!tracking.current) return
+      if (fired.current) return
+      if (window.innerWidth >= MOBILE_BREAKPOINT) return
+
       const touch = e.touches[0]
       const dx = touch.clientX - startX.current
       const dy = Math.abs(touch.clientY - startY.current)
 
-      // If vertical movement dominates, this is a scroll — abort
-      if (dy > dx) {
-        tracking.current = false
-        return
-      }
+      // Must be moving right
+      if (dx <= 0) return
 
+      // Must be predominantly horizontal
+      if (dy * DIRECTION_RATIO > dx) return
+
+      // Must travel far enough
       if (dx >= SWIPE_THRESHOLD) {
-        tracking.current = false
+        fired.current = true
         onSwipe()
       }
     }
 
-    function onTouchEnd() {
-      tracking.current = false
-    }
-
     document.addEventListener("touchstart", onTouchStart, { passive: true })
     document.addEventListener("touchmove", onTouchMove, { passive: true })
-    document.addEventListener("touchend", onTouchEnd, { passive: true })
 
     return () => {
       document.removeEventListener("touchstart", onTouchStart)
       document.removeEventListener("touchmove", onTouchMove)
-      document.removeEventListener("touchend", onTouchEnd)
     }
   }, [onSwipe])
 }
