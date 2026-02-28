@@ -113,7 +113,9 @@ export async function GET() {
 
   const campaignIds = (userCampaigns || []).map((c) => c.id)
 
-  // Count actual scans from the scans table (always reliably populated)
+  // Count unique scans (first visit per device per campaign) for billing
+  // Repeat scans from the same device within the cookie window are not billed.
+  // When the cookie expires (30/60/90 days), the next scan counts as new.
   let currentScanCount = 0
   if (campaignIds.length > 0) {
     const { count: scanCount } = await supabase
@@ -121,6 +123,7 @@ export async function GET() {
       .select('*', { count: 'exact', head: true })
       .in('campaign_id', campaignIds)
       .gte('scanned_at', periodStart)
+      .eq('is_first_scan', true)
 
     currentScanCount = scanCount || 0
   }

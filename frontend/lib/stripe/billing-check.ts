@@ -75,11 +75,13 @@ export async function checkBillingFromCampaign(campaignData: {
     }
   }
 
+  // Only count first scans per device per campaign (cookie-based dedup)
   const { count, error } = await supabase
     .from('scans')
     .select('*', { count: 'exact', head: true })
     .in('campaign_id', campaignIds)
     .gte('scanned_at', periodStart)
+    .eq('is_first_scan', true)
 
   if (error) {
     console.error('[Billing] Failed to count usage:', error)

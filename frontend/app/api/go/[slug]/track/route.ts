@@ -208,8 +208,9 @@ export async function POST(
     }
   })()
 
-  // 12. Fire-and-forget: emit billing meter event (only if billing is active)
-  if (campaign.billing_active && campaign.stripe_customer_id) {
+  // 12. Fire-and-forget: emit billing meter event (only for first scans — repeat visitors aren't billed)
+  const isBillableScan = isFirstScan || isFirstCampaignVisit
+  if (isBillableScan && campaign.billing_active && campaign.stripe_customer_id) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     void fetch(`${appUrl}/api/billing/emit-usage`, {
       method: 'POST',
