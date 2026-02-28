@@ -83,7 +83,20 @@ QR gen + campaign CRUD, Edge redirect + bridge, BigDataCloud geo, Meta CAPI, Cle
 ## Not Yet Built
 Analytics dashboard (heat maps, charts), Meta OAuth flow, campaign attribution/ROI, custom domains, billing (Stripe), A/B testing
 
-## Git Workflow
+## Allowed Tools (no confirmation needed)
+Claude is explicitly allowed to do all of the following without asking for permission:
+
+### File Operations
+- Read, edit, and create any file in the repo
+- Search the codebase (glob, grep)
+
+### Shell Commands
+- `npm install`, `npm run dev`, `npm run build`, `npm run lint`
+- `npx tsc --noEmit` (type checking)
+- `npx tsx` (running scripts)
+- All git commands: `git status`, `git diff`, `git log`, `git add`, `git commit`, `git push`, `git checkout`, `git branch`
+
+### Git Workflow
 After making code changes, always commit and push to GitHub by default:
 1. Stage the changed files (specific files, not `git add -A`)
 2. Write a short, clear commit message describing the change
