@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
 import { useClerk } from "@clerk/nextjs"
 import { toast } from "sonner"
+import { Drawer } from "vaul"
 import { Shader, ChromaFlow, Swirl } from "shaders/react"
 import { GrainOverlay } from "@/components/grain-overlay"
 import { Card, Button } from "shared-components"
@@ -20,12 +21,14 @@ import {
   CreditCard,
   Mail,
   ExternalLink,
+  Menu,
 } from "lucide-react"
 
 type TabId = "qr-code" | "map" | "campaigns" | "billing" | "settings" | "support"
 
 export function CRMDashboard() {
   const [activeTab, setActiveTab] = useState<TabId>("qr-code")
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const shaderContainerRef = useRef<HTMLDivElement>(null)
   const [isShaderLoaded, setIsShaderLoaded] = useState(false)
   const { signOut } = useClerk()
@@ -139,92 +142,56 @@ export function CRMDashboard() {
         <div className="absolute inset-0 bg-black/20" />
       </div>
 
+      {/* Mobile Drawer */}
+      <Drawer.Root direction="left" open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 z-40 bg-black/60 md:hidden" />
+          <Drawer.Content
+            className="fixed inset-y-0 left-0 z-50 w-72 md:hidden focus:outline-none"
+            aria-label="Navigation menu"
+          >
+            <div className="h-full p-4 overflow-y-auto backdrop-blur-[40px] bg-white/[0.12] border-r border-white/20">
+              <SidebarNav
+                navItems={navItems}
+                activeTab={activeTab}
+                onTabChange={(id) => { setActiveTab(id); setDrawerOpen(false) }}
+                onLogout={handleLogout}
+              />
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
+
       {/* Content Layer */}
       <div
-        className={`relative z-10 p-6 grid grid-cols-12 gap-6 h-screen transition-opacity duration-700 ${
+        className={`relative z-10 p-4 md:p-6 flex flex-col md:grid md:grid-cols-12 md:gap-6 h-screen transition-opacity duration-700 ${
           isShaderLoaded ? "opacity-100" : "opacity-0"
         }`}
       >
-        {/* Left Sidebar Card */}
-        <Card variant="glass" className="col-span-2 p-6 pb-6 h-fit flex flex-col">
-          <div className="space-y-6">
-            {/* Logo */}
-            <div className="flex flex-col items-center">
-              <img src="/logo.png" alt="Elendil" className="h-12 w-auto mb-2" />
-              <p className="text-white/60 text-sm">QR Tracking Platform</p>
-            </div>
+        {/* Mobile Header */}
+        <div className="flex items-center gap-3 mb-4 md:hidden">
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white active:bg-white/20 transition-colors"
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <img src="/logo.png" alt="Elendil" className="h-8 w-auto" />
+        </div>
 
-            {/* Main Navigation */}
-            <div>
-              <h4 className="text-white/60 text-xs font-medium uppercase tracking-wider mb-3 pl-3">Main Menu</h4>
-              <nav className="flex flex-col gap-1">
-                {navItems.map((item) => (
-                  <Button
-                    key={item.id}
-                    variant={activeTab === item.id ? "glass-active" : "glass"}
-                    className="w-full h-11 px-3 flex items-center justify-start"
-                    onClick={() => setActiveTab(item.id)}
-                  >
-                    <span className="w-6 flex items-center justify-center shrink-0">
-                      <item.icon className="h-5 w-5" />
-                    </span>
-                    <span className="ml-3 text-sm font-medium">{item.label}</span>
-                  </Button>
-                ))}
-              </nav>
-            </div>
-
-            {/* Administration */}
-            <div>
-              <h4 className="text-white/60 text-xs font-medium uppercase tracking-wider mb-3 pl-3">Administration</h4>
-              <nav className="flex flex-col gap-1">
-                <Button
-                  variant={activeTab === "billing" ? "glass-active" : "glass"}
-                  className="w-full h-11 px-3 flex items-center justify-start"
-                  onClick={() => setActiveTab("billing")}
-                >
-                  <span className="w-6 flex items-center justify-center shrink-0">
-                    <CreditCard className="h-5 w-5" />
-                  </span>
-                  <span className="ml-3 text-sm font-medium">Billing</span>
-                </Button>
-                <Button
-                  variant={activeTab === "settings" ? "glass-active" : "glass"}
-                  className="w-full h-11 px-3 flex items-center justify-start"
-                  onClick={() => setActiveTab("settings")}
-                >
-                  <span className="w-6 flex items-center justify-center shrink-0">
-                    <Settings className="h-5 w-5" />
-                  </span>
-                  <span className="ml-3 text-sm font-medium">Settings</span>
-                </Button>
-                <Button
-                  variant={activeTab === "support" ? "glass-active" : "glass"}
-                  className="w-full h-11 px-3 flex items-center justify-start"
-                  onClick={() => setActiveTab("support")}
-                >
-                  <span className="w-6 flex items-center justify-center shrink-0">
-                    <HelpCircle className="h-5 w-5" />
-                  </span>
-                  <span className="ml-3 text-sm font-medium">Support</span>
-                </Button>
-                <Button
-                  variant="glass"
-                  className="w-full h-11 px-3 flex items-center justify-start"
-                  onClick={handleLogout}
-                >
-                  <span className="w-6 flex items-center justify-center shrink-0">
-                    <LogOut className="h-5 w-5" />
-                  </span>
-                  <span className="ml-3 text-sm font-medium">Logout</span>
-                </Button>
-              </nav>
-            </div>
-          </div>
+        {/* Desktop Sidebar */}
+        <Card variant="glass" className="hidden md:flex col-span-2 p-6 pb-6 h-fit flex-col">
+          <SidebarNav
+            navItems={navItems}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            onLogout={handleLogout}
+          />
         </Card>
 
         {/* Main Content Area — all tabs stay mounted, hidden via CSS */}
-        <div className="col-span-10 h-screen overflow-y-auto pb-6">
+        <div className="flex-1 md:col-span-10 h-0 md:h-screen overflow-y-auto pb-6 min-h-0">
           <div style={{ display: activeTab === "qr-code" ? undefined : "none" }} className="space-y-6">
             <QRCodeGenerator campaigns={campaigns} isLoading={campaignsLoading} mutate={mutateCampaigns} />
           </div>
@@ -244,6 +211,95 @@ export function CRMDashboard() {
             <SupportPanel />
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function SidebarNav({
+  navItems,
+  activeTab,
+  onTabChange,
+  onLogout,
+}: {
+  navItems: { icon: typeof QrCode; label: string; id: TabId }[]
+  activeTab: TabId
+  onTabChange: (id: TabId) => void
+  onLogout: () => void
+}) {
+  return (
+    <div className="space-y-6">
+      {/* Logo */}
+      <div className="flex flex-col items-center">
+        <img src="/logo.png" alt="Elendil" className="h-12 w-auto mb-2" />
+        <p className="text-white/60 text-sm">QR Tracking Platform</p>
+      </div>
+
+      {/* Main Navigation */}
+      <div>
+        <h4 className="text-white/60 text-xs font-medium uppercase tracking-wider mb-3 pl-3">Main Menu</h4>
+        <nav className="flex flex-col gap-1">
+          {navItems.map((item) => (
+            <Button
+              key={item.id}
+              variant={activeTab === item.id ? "glass-active" : "glass"}
+              className="w-full h-11 px-3 flex items-center justify-start"
+              onClick={() => onTabChange(item.id)}
+            >
+              <span className="w-6 flex items-center justify-center shrink-0">
+                <item.icon className="h-5 w-5" />
+              </span>
+              <span className="ml-3 text-sm font-medium">{item.label}</span>
+            </Button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Administration */}
+      <div>
+        <h4 className="text-white/60 text-xs font-medium uppercase tracking-wider mb-3 pl-3">Administration</h4>
+        <nav className="flex flex-col gap-1">
+          <Button
+            variant={activeTab === "billing" ? "glass-active" : "glass"}
+            className="w-full h-11 px-3 flex items-center justify-start"
+            onClick={() => onTabChange("billing")}
+          >
+            <span className="w-6 flex items-center justify-center shrink-0">
+              <CreditCard className="h-5 w-5" />
+            </span>
+            <span className="ml-3 text-sm font-medium">Billing</span>
+          </Button>
+          <Button
+            variant={activeTab === "settings" ? "glass-active" : "glass"}
+            className="w-full h-11 px-3 flex items-center justify-start"
+            onClick={() => onTabChange("settings")}
+          >
+            <span className="w-6 flex items-center justify-center shrink-0">
+              <Settings className="h-5 w-5" />
+            </span>
+            <span className="ml-3 text-sm font-medium">Settings</span>
+          </Button>
+          <Button
+            variant={activeTab === "support" ? "glass-active" : "glass"}
+            className="w-full h-11 px-3 flex items-center justify-start"
+            onClick={() => onTabChange("support")}
+          >
+            <span className="w-6 flex items-center justify-center shrink-0">
+              <HelpCircle className="h-5 w-5" />
+            </span>
+            <span className="ml-3 text-sm font-medium">Support</span>
+          </Button>
+          <Button
+            variant="glass"
+            className="w-full h-11 px-3 flex items-center justify-start"
+            onClick={onLogout}
+          >
+            <span className="w-6 flex items-center justify-center shrink-0">
+              <LogOut className="h-5 w-5" />
+            </span>
+            <span className="ml-3 text-sm font-medium">Logout</span>
+          </Button>
+        </nav>
       </div>
     </div>
   )
