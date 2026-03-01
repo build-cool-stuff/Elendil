@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, Button } from "shared-components"
 import {
   CreditCard,
@@ -11,16 +11,33 @@ import {
   Loader2,
   Receipt,
   Zap,
+  Shield,
+  ShieldOff,
 } from "lucide-react"
 import { useBillingStatus } from "@/hooks/use-billing-status"
 
 const PRICE_PER_SCAN_AUD = 20
-const SPEND_CAP_AUD = 5000
 
 export function BillingPanel() {
-  const { billing, isLoading, error: swrError } = useBillingStatus(5000)
+  const { billing, isLoading, error: swrError, mutate } = useBillingStatus(5000)
   const [error, setError] = useState<string | null>(null)
   const [isPortalLoading, setIsPortalLoading] = useState(false)
+
+  // Spend cap control state — synced from billing API on load
+  const [isCapEnabled, setIsCapEnabled] = useState(true)
+  const [capAmount, setCapAmount] = useState(5000)
+  const [capAmountInput, setCapAmountInput] = useState("5000")
+  const [isCapSaving, setIsCapSaving] = useState(false)
+  const [capSaveMessage, setCapSaveMessage] = useState<string | null>(null)
+
+  // Sync local state when billing data loads or changes
+  useEffect(() => {
+    if (billing?.usage) {
+      setIsCapEnabled(billing.usage.spend_cap_enabled)
+      setCapAmount(billing.usage.spend_cap_aud)
+      setCapAmountInput(String(billing.usage.spend_cap_aud))
+    }
+  }, [billing?.usage?.spend_cap_enabled, billing?.usage?.spend_cap_aud])
 
   const displayError = swrError ? "Unable to load billing information" : error
 
@@ -37,6 +54,66 @@ export function BillingPanel() {
       setTimeout(() => setError(null), 3000)
     } finally {
       setIsPortalLoading(false)
+    }
+  }
+
+  // Toggle spend cap on/off — saves immediately via PATCH
+  const handleCapToggle = async (enabled: boolean) => {
+    const previousValue = isCapEnabled
+    setIsCapEnabled(enabled)
+    setIsCapSaving(true)
+    setCapSaveMessage(null)
+    try {
+      const res = await fetch("/api/billing/spend-cap", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spend_cap_enabled: enabled }),
+      })
+      if (!res.ok) {
+        setIsCapEnabled(previousValue)
+        setCapSaveMessage("Failed to update. Please try again.")
+      } else {
+        setCapSaveMessage(enabled ? "Spend cap enabled" : "Spend cap disabled")
+        mutate()
+      }
+    } catch {
+      setIsCapEnabled(previousValue)
+      setCapSaveMessage("Network error. Please try again.")
+    } finally {
+      setIsCapSaving(false)
+      setTimeout(() => setCapSaveMessage(null), 3000)
+    }
+  }
+
+  // Save spend cap amount — validates then saves via PATCH
+  const handleCapAmountSave = async () => {
+    const amount = Number(capAmountInput)
+    if (isNaN(amount) || amount < 100 || amount > 1000000) {
+      setCapSaveMessage("Amount must be between $100 and $1,000,000 AUD")
+      setTimeout(() => setCapSaveMessage(null), 3000)
+      return
+    }
+    setIsCapSaving(true)
+    setCapSaveMessage(null)
+    try {
+      const res = await fetch("/api/billing/spend-cap", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spend_cap_amount_aud: amount }),
+      })
+      if (res.ok) {
+        setCapAmount(amount)
+        setCapSaveMessage("Spend cap updated")
+        mutate()
+      } else {
+        const data = await res.json()
+        setCapSaveMessage(data.error || "Failed to update")
+      }
+    } catch {
+      setCapSaveMessage("Network error. Please try again.")
+    } finally {
+      setIsCapSaving(false)
+      setTimeout(() => setCapSaveMessage(null), 3000)
     }
   }
 
@@ -68,10 +145,13 @@ export function BillingPanel() {
     return <IncompleteSetupState />
   }
 
-  const spendPercentage = Math.min(
-    (billing.usage.accrued_spend_aud / SPEND_CAP_AUD) * 100,
-    100
-  )
+  // Use per-user cap from API (not hardcoded)
+  const userCapAud = billing.usage.spend_cap_aud
+  const capEnabled = billing.usage.spend_cap_enabled
+
+  const spendPercentage = capEnabled
+    ? Math.min((billing.usage.accrued_spend_aud / userCapAud) * 100, 100)
+    : 0
 
   const getSpendBarColor = () => {
     if (spendPercentage >= 90) return "bg-red-500"
@@ -139,6 +219,11 @@ export function BillingPanel() {
   const projectedSpend = projectedScans * PRICE_PER_SCAN_AUD
   const daysRemaining = Math.max(0, daysInPeriod - daysElapsed)
 
+  // Cap the projected spend display only when cap is enabled
+  const projectedSpendDisplay = capEnabled
+    ? Math.min(projectedSpend, userCapAud)
+    : projectedSpend
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -164,7 +249,7 @@ export function BillingPanel() {
               <p className="text-red-300/70 text-sm mt-1">
                 {!billing.billing_active
                   ? "Your subscription is inactive. QR codes still redirect, but Meta Pixel, CAPI, and precision geo tracking are paused."
-                  : `You've reached the ${formatCurrency(SPEND_CAP_AUD)} spend cap. Premium tracking features are paused until your next billing period.`}
+                  : `You've reached the ${formatCurrency(userCapAud)} spend cap. Premium tracking features are paused until your next billing period.`}
               </p>
               {!billing.billing_active && (
                 <Button
@@ -242,8 +327,8 @@ export function BillingPanel() {
         </Card>
       )}
 
-      {/* Spend cap approaching warning */}
-      {!billing.degraded && spendPercentage >= 70 && (
+      {/* Spend cap approaching warning — only when cap is enabled */}
+      {capEnabled && !billing.degraded && spendPercentage >= 70 && (
         <Card variant="glass" className="p-4 border border-yellow-500/30">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center shrink-0">
@@ -254,7 +339,7 @@ export function BillingPanel() {
                 {spendPercentage >= 90 ? "Approaching spend cap" : "Usage notice"}
               </p>
               <p className="text-yellow-300/70 text-sm mt-1">
-                You've used {formatCurrency(billing.usage.accrued_spend_aud)} of your {formatCurrency(SPEND_CAP_AUD)} monthly cap.
+                You've used {formatCurrency(billing.usage.accrued_spend_aud)} of your {formatCurrency(userCapAud)} monthly cap.
                 {spendPercentage >= 90 && " Premium features will pause when the cap is reached."}
               </p>
             </div>
@@ -277,7 +362,7 @@ export function BillingPanel() {
           </div>
           <div className="px-2 last:pr-0">
             <p className="text-white/50 text-xs mb-1">Projected</p>
-            <p className="text-xl font-bold text-white">~{formatCurrency(Math.min(projectedSpend, SPEND_CAP_AUD))}</p>
+            <p className="text-xl font-bold text-white">~{formatCurrency(projectedSpendDisplay)}</p>
             <p className="text-white/40 text-xs mt-0.5">~{projectedScans.toLocaleString()} scans</p>
           </div>
         </div>
@@ -318,7 +403,7 @@ export function BillingPanel() {
             <p className="text-white/60 text-sm">Projected Invoice</p>
           </div>
           <p className="text-3xl font-bold text-white">
-            ~{formatCurrency(Math.min(projectedSpend, SPEND_CAP_AUD))}
+            ~{formatCurrency(projectedSpendDisplay)}
           </p>
           <p className="text-white/40 text-sm mt-1">
             ~{projectedScans.toLocaleString()} scans at current rate
@@ -326,23 +411,127 @@ export function BillingPanel() {
         </Card>
       </div>
 
-      {/* Spend cap progress bar */}
-      <Card variant="glass" className="p-4 md:p-6">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-white font-semibold text-sm md:text-base">Spend Cap</h3>
-          <p className="text-white/60 text-xs md:text-sm">
-            {formatCurrency(billing.usage.accrued_spend_aud)} / {formatCurrency(SPEND_CAP_AUD)}
+      {/* Spend cap progress bar — only shown when cap is enabled */}
+      {capEnabled && (
+        <Card variant="glass" className="p-4 md:p-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-white font-semibold text-sm md:text-base">Spend Cap</h3>
+            <p className="text-white/60 text-xs md:text-sm">
+              {formatCurrency(billing.usage.accrued_spend_aud)} / {formatCurrency(userCapAud)}
+            </p>
+          </div>
+          <div className="w-full h-2 md:h-3 bg-white/10 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${getSpendBarColor()}`}
+              style={{ width: `${spendPercentage}%` }}
+            />
+          </div>
+          <p className="text-white/40 text-xs md:text-sm mt-2">
+            Premium features pause at {formatCurrency(userCapAud)}. QR codes continue redirecting.
           </p>
+        </Card>
+      )}
+
+      {/* ============================================================
+       * SPEND CAP CONTROLS
+       * Two controls:
+       * 1. On/off toggle — enables or disables spend cap enforcement
+       * 2. Amount input — sets the dollar threshold (only when enabled)
+       * ============================================================ */}
+      <Card variant="glass" className="p-4 md:p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0">
+            {isCapEnabled ? (
+              <Shield className="h-5 w-5 text-blue-400" />
+            ) : (
+              <ShieldOff className="h-5 w-5 text-white/40" />
+            )}
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-white">Spend Cap Controls</h3>
+            <p className="text-white/50 text-xs md:text-sm">
+              Control whether a monthly spend limit is enforced on your scans.
+            </p>
+          </div>
         </div>
-        <div className="w-full h-2 md:h-3 bg-white/10 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${getSpendBarColor()}`}
-            style={{ width: `${spendPercentage}%` }}
-          />
+
+        {/* Toggle: spend cap on/off */}
+        <div className="flex items-center justify-between bg-white/5 rounded-xl p-3 md:p-4 mb-3">
+          <div>
+            <p className="text-white font-medium text-sm md:text-base">Enforce Spend Cap</p>
+            <p className="text-white/50 text-xs md:text-sm">
+              {isCapEnabled
+                ? "Premium features pause when spend reaches the cap"
+                : "No spend limit — unlimited premium scans"}
+            </p>
+          </div>
+          <button
+            role="switch"
+            aria-checked={isCapEnabled}
+            aria-label="Toggle spend cap enforcement"
+            onClick={() => handleCapToggle(!isCapEnabled)}
+            disabled={isCapSaving}
+            className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 disabled:opacity-50 disabled:cursor-not-allowed ${
+              isCapEnabled ? "bg-emerald-500" : "bg-white/20"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                isCapEnabled ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
         </div>
-        <p className="text-white/40 text-xs md:text-sm mt-2">
-          Premium features pause at {formatCurrency(SPEND_CAP_AUD)}. QR codes continue redirecting.
-        </p>
+
+        {/* Amount input: only shown when cap is enabled */}
+        {isCapEnabled && (
+          <div className="bg-white/5 rounded-xl p-3 md:p-4">
+            <label htmlFor="cap-amount" className="text-white/80 font-medium text-sm block mb-2">
+              Monthly Spend Cap (AUD)
+            </label>
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-sm">$</span>
+                <input
+                  id="cap-amount"
+                  type="number"
+                  min={100}
+                  max={1000000}
+                  step={100}
+                  value={capAmountInput}
+                  onChange={(e) => setCapAmountInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleCapAmountSave()
+                  }}
+                  className="w-full h-10 pl-7 pr-4 bg-white/10 border border-white/20 rounded-xl text-white text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400/50 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  placeholder="5000"
+                />
+              </div>
+              <Button
+                variant="glass"
+                className="h-10 px-5 bg-blue-500/20 hover:bg-blue-500/30 text-sm shrink-0"
+                onClick={handleCapAmountSave}
+                disabled={isCapSaving || capAmountInput === String(capAmount)}
+              >
+                {isCapSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Save"
+                )}
+              </Button>
+            </div>
+            <p className="text-white/40 text-xs mt-2">
+              Minimum $100 AUD. Premium features pause at this amount. QR codes keep redirecting.
+            </p>
+          </div>
+        )}
+
+        {/* Save feedback message */}
+        {capSaveMessage && (
+          <p className={`text-xs mt-2 ${capSaveMessage.includes("Failed") || capSaveMessage.includes("error") || capSaveMessage.includes("must") ? "text-red-400" : "text-emerald-400"}`}>
+            {capSaveMessage}
+          </p>
+        )}
       </Card>
 
       {/* Subscription & payment details */}
@@ -443,8 +632,16 @@ export function BillingPanel() {
               <Check className="h-3 w-3 md:h-4 md:w-4 text-emerald-400" />
             </div>
             <div>
-              <p className="text-white font-medium text-sm md:text-base">Spend cap at {formatCurrency(SPEND_CAP_AUD)}</p>
-              <p className="text-white/50 text-xs md:text-sm">Premium features pause at the cap. QR codes keep working.</p>
+              <p className="text-white font-medium text-sm md:text-base">
+                {capEnabled
+                  ? `Spend cap at ${formatCurrency(userCapAud)}`
+                  : "Spend cap (configurable)"}
+              </p>
+              <p className="text-white/50 text-xs md:text-sm">
+                {capEnabled
+                  ? "Premium features pause at the cap. QR codes keep working."
+                  : "Currently disabled. You can enable a spend limit in the controls above."}
+              </p>
             </div>
           </div>
           <div className="flex items-start gap-3">
@@ -593,7 +790,7 @@ function NoBillingState() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-white/70 text-sm">Spend cap</span>
-              <span className="text-white font-medium">$5,000 AUD / month</span>
+              <span className="text-white font-medium">$5,000 AUD / month (adjustable)</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-white/70 text-sm">Minimum</span>

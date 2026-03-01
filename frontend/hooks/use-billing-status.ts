@@ -15,6 +15,7 @@ export interface BillingStatus {
     scan_count: number
     accrued_spend_aud: number
     spend_cap_aud: number
+    spend_cap_enabled: boolean
     price_per_scan_aud: number
   }
   upcoming_invoice: {

@@ -4,7 +4,10 @@
  * This is the primary entry point for QR code scans.
  * Handles campaign lookup, billing gate, geo extraction, scan recording, and Meta CAPI.
  *
- * Premium features (bridge, CAPI, suburb lookup) require billing_active or grace period.
+ * Premium features (bridge, CAPI, suburb lookup) require:
+ * - billing_active (or grace period), AND
+ * - spend cap not exceeded (when spend_cap_enabled is true)
+ *
  * Degraded mode: basic scan record + 302 redirect only.
  *
  * Route: /go/[slug]
@@ -37,6 +40,7 @@ import {
   fireQRCodeScanEvent,
   extractFacebookCookies,
 } from '@/lib/edge/meta-capi'
+import { checkBillingFromCampaign } from '@/lib/stripe/billing-check'
 
 export async function GET(
   request: NextRequest,
@@ -53,9 +57,29 @@ export async function GET(
     return NextResponse.redirect(new URL('/', request.url))
   }
 
-  // 2. Billing gate — determine if premium features are available
+  // 2. Billing gate — determine if premium features are available.
+  //    This now enforces the spend cap when spend_cap_enabled is true.
+  //    When spend_cap_enabled is false, the cap check is skipped entirely.
   const inGrace = !!(campaign.grace_period_end && new Date(campaign.grace_period_end) > new Date())
-  const isPremium = campaign.billing_active || inGrace
+  let isPremium = campaign.billing_active || inGrace
+
+  // If the user has billing active and the spend cap is enabled,
+  // run the spend cap check. This adds 2 queries (campaign IDs + scan count)
+  // but is necessary to enforce the cap at scan time.
+  if (isPremium && campaign.spend_cap_enabled) {
+    const billingCheck = await checkBillingFromCampaign({
+      user_id: campaign.user_id,
+      billing_active: campaign.billing_active,
+      stripe_customer_id: campaign.stripe_customer_id,
+      grace_period_end: campaign.grace_period_end,
+      spend_cap_enabled: campaign.spend_cap_enabled,
+      spend_cap_amount_aud: campaign.spend_cap_amount_aud,
+    })
+    // If the spend cap check says degraded, override premium to false
+    if (billingCheck.degraded) {
+      isPremium = false
+    }
+  }
 
   // 3. Extract request data
   const headers = request.headers
@@ -184,10 +208,11 @@ export async function GET(
     meta_event_id: eventId,
   })
 
-  // Emit billing meter event — only for billable first scans with active billing
-  // Don't emit during grace period (don't charge on a failed payment)
+  // Emit billing meter event — only for billable first scans with active premium.
+  // Don't emit during grace period (don't charge on a failed payment).
+  // Don't emit when spend cap is reached (isPremium is false, so this guard prevents it).
   const isBillableScan = isFirstScan || isFirstCampaignVisit
-  if (isBillableScan && campaign.billing_active && !inGrace && campaign.stripe_customer_id) {
+  if (isBillableScan && isPremium && campaign.billing_active && !inGrace && campaign.stripe_customer_id) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     void fetch(`${appUrl}/api/billing/emit-usage`, {
       method: 'POST',
