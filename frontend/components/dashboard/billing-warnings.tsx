@@ -1,24 +1,9 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect } from "react"
 import { Card, Button } from "shared-components"
 import { AlertTriangle, X } from "lucide-react"
-
-interface BillingWarningData {
-  billing_active: boolean
-  degraded: boolean
-  subscription: {
-    current_period_end: string
-    status: string
-  } | null
-  grace_period: {
-    active: boolean
-    ends_at: string
-    hours_remaining: number
-  } | null
-  degraded_since: string | null
-  missed_leads_count: number
-}
+import { useBillingStatus } from "@/hooks/use-billing-status"
 
 const WARNING_THRESHOLDS = [5, 3, 1] as const
 
@@ -27,27 +12,8 @@ function getDismissKey(periodEnd: string, threshold: number) {
 }
 
 export function BillingWarnings() {
-  const [data, setData] = useState<BillingWarningData | null>(null)
+  const { billing: data } = useBillingStatus(30000)
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  const fetchStatus = useCallback(async () => {
-    try {
-      const res = await fetch("/api/billing/status")
-      if (!res.ok) return
-      setData(await res.json())
-    } catch {
-      // Silently fail — warnings are non-critical
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchStatus()
-    intervalRef.current = setInterval(fetchStatus, 30000) // 30s for warnings (less frequent)
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
-  }, [fetchStatus])
 
   // Load dismissed state from localStorage
   useEffect(() => {
@@ -84,9 +50,9 @@ export function BillingWarnings() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-red-300 font-medium text-sm">
-              Payment failed — {hoursLeft > 1
-                ? `${Math.ceil(hoursLeft)} hours`
-                : "less than 1 hour"} until premium features are disabled
+              Payment failed — {hoursLeft != null
+                ? (hoursLeft > 1 ? `${Math.ceil(hoursLeft)} hours` : "less than 1 hour")
+                : "soon"} until premium features are disabled
             </p>
           </div>
           <Button

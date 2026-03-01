@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState } from "react"
 import { Card, Button } from "shared-components"
 import {
   CreditCard,
@@ -12,74 +12,17 @@ import {
   Receipt,
   Zap,
 } from "lucide-react"
+import { useBillingStatus } from "@/hooks/use-billing-status"
 
 const PRICE_PER_SCAN_AUD = 20
 const SPEND_CAP_AUD = 5000
 
-interface BillingStatus {
-  billing_active: boolean
-  stripe_customer_id: string | null
-  degraded: boolean
-  subscription: {
-    id: string
-    status: string
-    current_period_start: string
-    current_period_end: string
-    cancel_at_period_end: boolean
-  } | null
-  usage: {
-    scan_count: number
-    accrued_spend_aud: number
-    spend_cap_aud: number
-    price_per_scan_aud: number
-  }
-  upcoming_invoice: {
-    amount_due: number
-    currency: string
-    period_end: number
-  } | null
-  grace_period: {
-    active: boolean
-    ends_at: string
-    hours_remaining: number
-  } | null
-  degraded_since: string | null
-  missed_leads_count: number
-}
-
 export function BillingPanel() {
-  const [billing, setBilling] = useState<BillingStatus | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const { billing, isLoading, error: swrError } = useBillingStatus(5000)
   const [error, setError] = useState<string | null>(null)
   const [isPortalLoading, setIsPortalLoading] = useState(false)
 
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  const fetchBillingStatus = useCallback(async (silent = false) => {
-    try {
-      const res = await fetch("/api/billing/status")
-      if (!res.ok) throw new Error("Failed to fetch billing status")
-      const data = await res.json()
-      setBilling(data)
-      if (!silent) setError(null)
-    } catch (err) {
-      if (!silent) {
-        setError("Unable to load billing information")
-        console.error("Billing fetch error:", err)
-      }
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
-  // Initial fetch + 5s polling for live updates
-  useEffect(() => {
-    fetchBillingStatus()
-    intervalRef.current = setInterval(() => fetchBillingStatus(true), 5000)
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
-  }, [fetchBillingStatus])
+  const displayError = swrError ? "Unable to load billing information" : error
 
   const openStripePortal = async () => {
     setIsPortalLoading(true)
@@ -517,9 +460,9 @@ export function BillingPanel() {
       </Card>
 
       {/* Error display */}
-      {error && (
+      {displayError && (
         <Card variant="glass" className="p-4 border border-red-500/30">
-          <p className="text-red-300 text-sm">{error}</p>
+          <p className="text-red-300 text-sm">{displayError}</p>
         </Card>
       )}
     </div>
