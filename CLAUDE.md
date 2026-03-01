@@ -61,7 +61,7 @@ QR scan → GET /go/[slug] (Edge, <50ms)
 
 ## Key Files
 - Dashboard layout: `frontend/app/dashboard/layout.tsx` (Server) → `frontend/components/dashboard/dashboard-shell.tsx` (Client — WebGL shaders, sidebar, mobile drawer)
-- Dashboard pages: `frontend/app/dashboard/` (nested routes: `page.tsx`, `billing/`, `settings/`, `support/`, `map/`, `campaigns/`)
+- Dashboard pages: `frontend/app/dashboard/` (nested routes: `page.tsx` redirects to `qr-codes/`, `qr-codes/`, `billing/`, `settings/`, `support/`, `map/`, `campaigns/`)
 - Dashboard error: `frontend/app/dashboard/error.tsx` (error boundary for all dashboard routes)
 - Sidebar nav: `frontend/components/dashboard/sidebar-nav.tsx` (Link-based routing with `usePathname()`)
 - QR redirect: `frontend/app/go/[slug]/route.ts` (Edge)
@@ -75,8 +75,9 @@ QR scan → GET /go/[slug] (Edge, <50ms)
 - Auth middleware: `frontend/middleware.ts`
 
 ## Dashboard Routing
-The dashboard uses Next.js App Router nested routes with a shared `layout.tsx`:
-- `/dashboard` — QR Code Generator (default tab)
+The dashboard uses Next.js App Router nested routes with a shared `layout.tsx`. Every tab has a unique slug:
+- `/dashboard` — Redirects to `/dashboard/qr-codes` (server-side `redirect()`)
+- `/dashboard/qr-codes` — QR Code Generator
 - `/dashboard/map` — Heat Map (coming soon)
 - `/dashboard/campaigns` — Meta Campaigns (coming soon)
 - `/dashboard/billing` — Billing & usage panel (handles Stripe `?billing=success` callback)

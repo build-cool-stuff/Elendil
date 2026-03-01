@@ -21,7 +21,7 @@ type NavItem = {
 }
 
 const mainNavItems: NavItem[] = [
-  { icon: QrCode, label: "QR Code", href: "/dashboard" },
+  { icon: QrCode, label: "QR Code", href: "/dashboard/qr-codes" },
   { icon: MapPin, label: "Map", href: "/dashboard/map" },
   { icon: Facebook, label: "Campaigns", href: "/dashboard/campaigns" },
 ]
@@ -54,10 +54,6 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const { signOut } = useClerk()
 
   const isActive = (href: string) => {
-    // /dashboard is the QR Code tab (default/index route)
-    if (href === "/dashboard") {
-      return pathname === "/dashboard"
-    }
     return pathname === href || pathname.startsWith(href + "/")
   }
 
