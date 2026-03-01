@@ -577,6 +577,122 @@ export interface Database {
           updated_at?: string
         }
       }
+      support_tickets: {
+        Row: {
+          id: string
+          user_id: string
+          subject: string
+          message: string
+          status: 'open' | 'in_progress' | 'resolved' | 'closed'
+          priority: 'low' | 'medium' | 'high'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          subject: string
+          message: string
+          status?: 'open' | 'in_progress' | 'resolved' | 'closed'
+          priority?: 'low' | 'medium' | 'high'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          subject?: string
+          message?: string
+          status?: 'open' | 'in_progress' | 'resolved' | 'closed'
+          priority?: 'low' | 'medium' | 'high'
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      ticket_replies: {
+        Row: {
+          id: string
+          ticket_id: string
+          author_type: 'user' | 'admin'
+          author_id: string | null
+          message: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          ticket_id: string
+          author_type: 'user' | 'admin'
+          author_id?: string | null
+          message: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          ticket_id?: string
+          author_type?: 'user' | 'admin'
+          author_id?: string | null
+          message?: string
+          created_at?: string
+        }
+      }
+      admin_notes: {
+        Row: {
+          id: string
+          title: string
+          content: string
+          pinned: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          title?: string
+          content?: string
+          pinned?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          content?: string
+          pinned?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      admin_tasks: {
+        Row: {
+          id: string
+          title: string
+          description: string
+          status: 'todo' | 'in_progress' | 'done'
+          priority: 'low' | 'medium' | 'high'
+          due_date: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          description?: string
+          status?: 'todo' | 'in_progress' | 'done'
+          priority?: 'low' | 'medium' | 'high'
+          due_date?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string
+          status?: 'todo' | 'in_progress' | 'done'
+          priority?: 'low' | 'medium' | 'high'
+          due_date?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
   }
 }
@@ -595,3 +711,8 @@ export type MetaIntegration = Database['public']['Tables']['meta_integrations'][
 export type MetaCampaign = Database['public']['Tables']['meta_campaigns']['Row']
 export type Conversion = Database['public']['Tables']['conversions']['Row']
 export type ScanAggregate = Database['public']['Tables']['scan_aggregates']['Row']
+
+export type SupportTicket = Database['public']['Tables']['support_tickets']['Row']
+export type TicketReply = Database['public']['Tables']['ticket_replies']['Row']
+export type AdminNote = Database['public']['Tables']['admin_notes']['Row']
+export type AdminTask = Database['public']['Tables']['admin_tasks']['Row']

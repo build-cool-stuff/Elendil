@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
-import { useClerk } from "@clerk/nextjs"
+import { useClerk, useUser } from "@clerk/nextjs"
+import Link from "next/link"
 import { toast } from "sonner"
 import { Drawer } from "vaul"
 import { Shader, ChromaFlow, Swirl } from "shaders/react"
@@ -24,6 +25,7 @@ import {
   Mail,
   ExternalLink,
   Menu,
+  Shield,
 } from "lucide-react"
 
 type TabId = "qr-code" | "map" | "campaigns" | "billing" | "settings" | "support"
@@ -234,6 +236,8 @@ function SidebarNav({
   onTabChange: (id: TabId) => void
   onLogout: () => void
 }) {
+  const { user } = useUser()
+  const isAdmin = user?.id === process.env.NEXT_PUBLIC_ADMIN_USER_ID
   return (
     <div className="space-y-6">
       {/* Logo */}
@@ -296,6 +300,19 @@ function SidebarNav({
             </span>
             <span className="ml-3 text-sm font-medium">Support</span>
           </Button>
+          {isAdmin && (
+            <Link href="/admin">
+              <Button
+                variant="glass"
+                className="w-full h-11 px-3 flex items-center justify-start bg-blue-500/10 hover:bg-blue-500/20"
+              >
+                <span className="w-6 flex items-center justify-center shrink-0">
+                  <Shield className="h-5 w-5 text-blue-400" />
+                </span>
+                <span className="ml-3 text-sm font-medium text-blue-300">Admin Panel</span>
+              </Button>
+            </Link>
+          )}
           <Button
             variant="glass"
             className="w-full h-11 px-3 flex items-center justify-start"
@@ -689,25 +706,192 @@ function SettingsPanel() {
 }
 
 function SupportPanel() {
+  const [showForm, setShowForm] = useState(false)
+  const [subject, setSubject] = useState("")
+  const [message, setMessage] = useState("")
+  const [priority, setPriority] = useState<"low" | "medium" | "high">("medium")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitStatus, setSubmitStatus] = useState<{ type: "success" | "error"; message: string } | null>(null)
+  const [tickets, setTickets] = useState<Array<{ id: string; subject: string; status: string; priority: string; created_at: string }>>([])
+  const [isLoadingTickets, setIsLoadingTickets] = useState(false)
+
+  const loadTickets = useCallback(async () => {
+    setIsLoadingTickets(true)
+    try {
+      const res = await fetch("/api/support/tickets")
+      if (res.ok) {
+        const data = await res.json()
+        setTickets(data.tickets || [])
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setIsLoadingTickets(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadTickets()
+  }, [loadTickets])
+
+  const handleSubmit = async () => {
+    if (!subject.trim() || !message.trim()) return
+    setIsSubmitting(true)
+    setSubmitStatus(null)
+
+    try {
+      const res = await fetch("/api/support/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject: subject.trim(), message: message.trim(), priority }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        setSubmitStatus({ type: "error", message: data.error || "Failed to submit ticket" })
+        return
+      }
+
+      setSubmitStatus({ type: "success", message: "Ticket submitted! We'll get back to you soon." })
+      setSubject("")
+      setMessage("")
+      setPriority("medium")
+      setShowForm(false)
+      loadTickets()
+      setTimeout(() => setSubmitStatus(null), 5000)
+    } catch {
+      setSubmitStatus({ type: "error", message: "Failed to submit ticket" })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const statusColors: Record<string, string> = {
+    open: "bg-yellow-500/20 text-yellow-300",
+    in_progress: "bg-blue-500/20 text-blue-300",
+    resolved: "bg-green-500/20 text-green-300",
+    closed: "bg-white/10 text-white/50",
+  }
+
   return (
     <div className="space-y-6">
       <Card variant="glass" className="p-6">
         <div className="text-center py-8">
           <Mail className="w-14 h-14 text-white/50 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-white mb-3">Talk Directly to the Founder</h2>
+          <h2 className="text-2xl font-bold text-white mb-3">Need Help?</h2>
           <p className="text-white/70 max-w-lg mx-auto mb-6 leading-relaxed">
-            You're not just a user - you're one of our first customers, and that means everything to us.
-            I personally read and respond to every single message. No support tickets, no chatbots, just a real conversation.
+            Submit a support ticket and we'll get back to you within 24 hours. You can also email us directly.
           </p>
-          <a
-            href="mailto:toanandvarghese@outlook.com?subject=Elendil Support"
-            className="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-6 py-3 rounded-xl transition-all duration-200 font-medium"
-          >
-            <Mail className="h-5 w-5" />
-            toanandvarghese@outlook.com
-          </a>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Button
+              variant="glass"
+              className="h-12 px-6 bg-blue-500/20 hover:bg-blue-500/30"
+              onClick={() => setShowForm(!showForm)}
+            >
+              <HelpCircle className="h-5 w-5 mr-2" />
+              {showForm ? "Cancel" : "Submit a Ticket"}
+            </Button>
+            <a
+              href="mailto:toanandvarghese@outlook.com?subject=Elendil Support"
+              className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-xl transition-all duration-200 font-medium text-sm"
+            >
+              <Mail className="h-4 w-4" />
+              toanandvarghese@outlook.com
+            </a>
+          </div>
         </div>
       </Card>
+
+      {submitStatus && (
+        <Card variant="glass" className={`p-4 ${submitStatus.type === "success" ? "border-green-500/30" : "border-red-500/30"}`}>
+          <p className={`text-sm ${submitStatus.type === "success" ? "text-green-300" : "text-red-300"}`}>
+            {submitStatus.message}
+          </p>
+        </Card>
+      )}
+
+      {showForm && (
+        <Card variant="glass" className="p-6">
+          <h3 className="text-xl font-semibold text-white mb-4">New Support Ticket</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="text-white/80 font-medium text-sm block mb-2">Subject</label>
+              <input
+                type="text"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="Brief description of your issue"
+                className="w-full h-12 px-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all"
+              />
+            </div>
+            <div>
+              <label className="text-white/80 font-medium text-sm block mb-2">Priority</label>
+              <div className="flex gap-2">
+                {(["low", "medium", "high"] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPriority(p)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
+                      priority === p
+                        ? p === "high" ? "bg-red-500/30 text-red-300 border border-red-500/40"
+                        : p === "medium" ? "bg-yellow-500/30 text-yellow-300 border border-yellow-500/40"
+                        : "bg-green-500/30 text-green-300 border border-green-500/40"
+                        : "bg-white/10 text-white/60 border border-white/10 hover:bg-white/15"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-white/80 font-medium text-sm block mb-2">Message</label>
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Describe your issue in detail..."
+                rows={5}
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all resize-none"
+              />
+            </div>
+            <Button
+              variant="glass"
+              className="h-12 px-8 bg-blue-500/20 hover:bg-blue-500/30"
+              onClick={handleSubmit}
+              disabled={isSubmitting || !subject.trim() || !message.trim()}
+            >
+              {isSubmitting ? "Submitting..." : "Submit Ticket"}
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {tickets.length > 0 && (
+        <Card variant="glass" className="p-6">
+          <h3 className="text-xl font-semibold text-white mb-4">Your Tickets</h3>
+          <div className="space-y-3">
+            {isLoadingTickets ? (
+              <div className="h-20 bg-white/10 rounded-xl animate-pulse" />
+            ) : (
+              tickets.map((ticket) => (
+                <div key={ticket.id} className="bg-white/5 rounded-xl p-4 flex items-center justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-white font-medium truncate">{ticket.subject}</p>
+                    <p className="text-white/40 text-xs mt-1">
+                      {new Date(ticket.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-4">
+                    <span className={`px-2 py-1 rounded-md text-xs font-medium ${statusColors[ticket.status] || "bg-white/10 text-white/50"}`}>
+                      {ticket.status.replace("_", " ")}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+      )}
 
       <Card variant="glass" className="p-6">
         <h3 className="text-xl font-semibold text-white mb-4">What to Expect</h3>
@@ -718,7 +902,7 @@ function SupportPanel() {
             </div>
             <div>
               <p className="text-white font-medium">24-Hour Response Time</p>
-              <p className="text-white/60 text-sm">I'll get back to you within 24 hours, usually much faster.</p>
+              <p className="text-white/60 text-sm">We'll get back to you within 24 hours, usually much faster.</p>
             </div>
           </div>
           <div className="flex items-start gap-4">
@@ -727,7 +911,7 @@ function SupportPanel() {
             </div>
             <div>
               <p className="text-white font-medium">Real Conversations</p>
-              <p className="text-white/60 text-sm">No canned responses. I want to understand your needs and help you succeed.</p>
+              <p className="text-white/60 text-sm">No canned responses. We want to understand your needs and help you succeed.</p>
             </div>
           </div>
           <div className="flex items-start gap-4">
@@ -740,12 +924,6 @@ function SupportPanel() {
             </div>
           </div>
         </div>
-      </Card>
-
-      <Card variant="glass" className="p-6">
-        <p className="text-white/50 text-sm text-center italic">
-          "The best thing about being small is you can provide a level of service no big company can." - Y Combinator
-        </p>
       </Card>
     </div>
   )
