@@ -9,11 +9,13 @@
 - BigDataCloud precision geo (primary), Vercel headers (fallback)
 - Meta Conversions API (CAPI) + client Pixel with event_id dedup
 - AES-256-GCM encryption (Meta tokens), SHA-256 + salt (IP hashing)
+- Stripe metered billing (usage-based, per-scan pricing)
 
 ## Monorepo Layout
 - `frontend/` — Next.js app (all development happens here)
 - `shared-components/` — Radix UI wrapper package
-- `supabase/migrations/` — 8 SQL migrations (001–008)
+- `scripts/` — Utility scripts (seed-suburbs.ts)
+- `supabase/migrations/` — 9 SQL migrations (001–009)
 
 ## Commands
 ```bash
@@ -62,16 +64,118 @@ QR scan → GET /go/[slug] (Edge, <50ms)
 - Bridge page: `frontend/app/go/[slug]/bridge/page.tsx` (Client)
 - Tracking endpoint: `frontend/app/api/go/[slug]/track/route.ts` (Edge)
 - Dashboard: `frontend/components/dashboard/crm-dashboard.tsx`
-- Edge utils: `frontend/lib/edge/` (bigdatacloud, meta-capi, encryption, cookies, geo, user-agent)
+- Billing UI: `frontend/components/dashboard/billing-panel.tsx` (status, spend, projections)
+- Billing alerts: `frontend/components/dashboard/billing-warnings.tsx` (grace period, degraded warnings)
+- QR generator: `frontend/components/dashboard/qr-code-generator.tsx`
+- Edge utils: `frontend/lib/edge/` (bigdatacloud, meta-capi, encryption, cookies, geo, user-agent, supabase-edge, index)
 - Stripe billing: `frontend/lib/stripe/` (client.ts, billing.ts, billing-check.ts)
-- Supabase clients: `frontend/lib/supabase/` (client.ts=browser+Clerk JWT, server.ts=secret key, ensure-user.ts=sync)
+- Supabase clients: `frontend/lib/supabase/` (client.ts=browser+Clerk JWT, server.ts=secret key, ensure-user.ts=sync, types.ts)
+- QR service: `frontend/lib/services/qr-code.service.ts`
 - Auth middleware: `frontend/middleware.ts`
 
 ## Routes
-- **Public:** `/`, `/login`, `/signup`, `/go/[slug]`, `/go/[slug]/bridge`
-- **Protected:** `/dashboard`, `/api/campaigns`, `/api/campaigns/[id]`, `/api/user/settings`, `/api/billing/*`
-- **Webhooks:** `/api/webhooks/clerk` (Svix-verified user sync), `/api/webhooks/stripe` (signature-verified)
-- **Internal:** `/api/billing/emit-usage` (API key), `/api/cron/retry-usage` (cron secret)
+- **Public:** `/`, `/login`, `/signup`, `/go/[slug]`, `/go/[slug]/bridge`, `/q/[code]` (alternate QR lookup)
+- **Protected:** `/dashboard`, `/api/campaigns`, `/api/campaigns/[id]`, `/api/user/settings`, `/api/billing/*`, `/api/scans`
+- **Billing API:** `/api/billing/setup` (checkout session), `/api/billing/portal` (Stripe customer portal), `/api/billing/status` (comprehensive billing status)
+- **Webhooks:** `/api/webhooks/clerk` (Svix-verified user sync), `/api/webhooks/stripe` (signature-verified billing events)
+- **Internal:** `/api/billing/emit-usage` (API key, Node-only Stripe meter emission)
+- **Cron:** `/api/cron/retry-usage` (retry failed meter events, every 5 min), `/api/cron/enforce-grace` (degrade users after grace expiry, every 5 min)
+
+## Billing Architecture
+
+### Pricing Model
+- **$20 AUD per unique scan** (first scan per device per campaign, deduplicated via `is_first_scan` cookie tracking)
+- **$5,000 AUD monthly spend cap** — prevents runaway charges (250 first scans max before degradation)
+- **Billing cycle:** Monthly, in arrears (charged after usage accrues)
+- **No minimum:** Users pay $0 if they get no scans
+
+### Stripe Integration
+- **Metered billing** via Stripe Billing Meter API (`stripe.billing.meterEvents.create()`)
+- **Checkout:** `/api/billing/setup` creates a Stripe Checkout session (`mode: 'subscription'`)
+- **Self-service:** `/api/billing/portal` redirects to Stripe Customer Portal (invoices, payment method, cancellation)
+- **Webhook events handled:** `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`
+
+### Write-Ahead Meter Events (Reliability Pattern)
+1. Scan recorded with `is_first_scan: true` → insert row to `scan_usage_events` table (status: `pending`)
+2. Fire-and-forget call to `/api/billing/emit-usage` (Node runtime, not Edge)
+3. Emit-usage endpoint calls Stripe meter API, marks event `sent` or `failed`
+4. Idempotency key: `scan_${eventId}` (unique constraint prevents duplicate charges)
+5. Failed events retried by `/api/cron/retry-usage` every 5 minutes (max 5 retries)
+6. After 5 failures → marked `dead_letter` (no more retries, logged for investigation)
+
+### Grace Period & Degradation Flow
+```
+invoice.payment_failed webhook
+  → Set grace_period_end = now + 24 hours (only if not already set)
+  → Premium features continue during grace period
+
+/api/cron/enforce-grace (every 5 min)
+  → Find users where grace_period_end <= now AND degraded_since IS NULL
+  → Set billing_active = false, degraded_since = now
+
+invoice.paid webhook
+  → Clear grace_period_end, clear degraded_since
+  → Set billing_active = true (full recovery)
+
+customer.subscription.deleted webhook
+  → No grace period — immediate degradation
+  → Set billing_active = false, degraded_since = now
+```
+
+### Degradation Triggers
+1. **Spend cap reached:** `accrued_spend >= $5,000 AUD` (250 first scans × $20) — resets next billing period
+2. **Payment failed + grace expired:** 24-hour grace, then degraded by cron
+3. **Subscription canceled:** Immediate degradation (no grace for voluntary cancel)
+
+### Premium vs Degraded Feature Matrix
+| Feature | Premium | Degraded |
+|---------|---------|----------|
+| QR redirect to destination | Yes | Yes (never breaks) |
+| Basic scan recording | Yes | Yes (device + Vercel geo) |
+| Bridge page | Yes | No (direct 302 redirect) |
+| Meta Pixel (client) | Yes | No |
+| Meta CAPI (server) | Yes | No |
+| BigDataCloud precision geo | Yes | No (Vercel headers fallback) |
+| Suburb lookup | Yes | No |
+| Billing meter emission | Yes | No |
+
+### Billing-Related Database Schema
+**Users table columns** (added by migrations 007, 009):
+- `stripe_customer_id` — Stripe customer ID
+- `billing_active` — Subscription is active/trialing (boolean, default false)
+- `grace_period_end` — When 24-hour grace period expires
+- `degraded_since` — When degradation started (used for missed leads counting)
+
+**billing_subscriptions table:** Tracks Stripe subscription lifecycle (status, period dates, cancellation)
+
+**scan_usage_events table:** Write-ahead queue for meter events (pending → sent/failed → dead_letter)
+
+### Missed Leads Tracking
+When degraded, the dashboard shows "X leads missed since [date]" — counts `is_first_scan = true` scans since `degraded_since` timestamp. Warns users about lost Meta Pixel events and precision geo data.
+
+### Billing Check in Edge Runtime
+`checkBillingFromCampaign()` in `lib/stripe/billing-check.ts` runs on every QR scan:
+- Piggybacks on campaign lookup (user billing fields included)
+- One extra count query for current-period first scans
+- **Fail-open policy:** If count query fails, returns `degraded: false` (allow premium features)
+
+### First Scan Deduplication (Cookie-Based)
+- `elendil_vid` cookie — Visitor UUID (persistent across campaigns)
+- `elendil_campaigns` cookie — Set of campaign IDs visited
+- First visit from device → `is_first_scan: true` (billable)
+- Repeat visit within cookie expiry → `is_first_scan: false` (free)
+- Cookie expires → next visit is billable again
+
+## SQL Migrations
+1. `001_qr_tracking_schema.sql` — Core schema (users, campaigns, scans tables + RLS)
+2. `002_edge_enhancements.sql` — Edge runtime optimizations
+3. `003_bigdatacloud_precision_geo.sql` — Precision geo columns
+4. `004_user_meta_pixel_id.sql` — Meta Pixel ID on users
+5. `005_tracking_base_url.sql` — Base URL tracking
+6. `006_user_meta_capi_token.sql` — Encrypted Meta CAPI token storage
+7. `007_stripe_billing.sql` — Billing infrastructure (billing_subscriptions, scan_usage_events, user billing columns)
+8. `008_remove_scan_cap.sql` — Removed per-user scan limits
+9. `009_billing_grace_period.sql` — Grace period + degradation tracking columns
 
 ## Env Vars
 ```
@@ -88,13 +192,7 @@ NEXT_PUBLIC_ADMIN_USER_ID (same value, client-side admin UI toggle)
 ```
 
 ## What's Built
-QR gen + campaign CRUD, Edge redirect + bridge, BigDataCloud geo, Meta CAPI, Clerk auth + Supabase sync, cookie tracking, dashboard with filters, landing page with WebGL shaders, Stripe metered billing ($20 AUD/scan, $5000 spend cap degrades to basic QR)
-
-## Billing Degradation
-When billing is inactive or accrued spend >= $5,000 AUD, QR codes degrade to basic redirects:
-- Still redirects to destination (never breaks)
-- Still records basic scan (device, Vercel geo)
-- NO Meta Pixel, NO CAPI, NO BigDataCloud precision geo, NO suburb lookup, NO bridge page
+QR gen + campaign CRUD, Edge redirect + bridge, BigDataCloud geo, Meta CAPI, Clerk auth + Supabase sync, cookie tracking, dashboard with filters + billing panel + billing warnings, landing page with WebGL shaders, Stripe metered billing ($20 AUD/scan, $5000 spend cap, 24h grace period, write-ahead meter events with retry queue, missed leads tracking)
 
 ## Not Yet Built
 Analytics dashboard (heat maps, charts), Meta OAuth flow, campaign attribution/ROI, custom domains, A/B testing
