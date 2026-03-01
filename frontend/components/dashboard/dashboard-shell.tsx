@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useCallback } from "react"
+import dynamic from "next/dynamic"
 import { Drawer } from "vaul"
-import { Shader, ChromaFlow, Swirl } from "shaders/react"
 import { GrainOverlay } from "@/components/grain-overlay"
 import { Card } from "shared-components"
 import { SidebarNav } from "@/components/dashboard/sidebar-nav"
@@ -10,10 +10,13 @@ import { BillingWarnings } from "@/components/dashboard/billing-warnings"
 import { useEdgeSwipe } from "@/hooks/use-edge-swipe"
 import { Menu } from "lucide-react"
 
+const ShaderBackground = dynamic(
+  () => import("@/components/shader-background").then((m) => m.ShaderBackground),
+  { ssr: false }
+)
+
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const shaderContainerRef = useRef<HTMLDivElement>(null)
-  const [isShaderLoaded, setIsShaderLoaded] = useState(false)
 
   // Swipe from left edge to open mobile drawer
   const openDrawer = useCallback(() => setDrawerOpen(true), [])
@@ -22,80 +25,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   // Close drawer on navigation
   const handleNavigate = useCallback(() => setDrawerOpen(false), [])
 
-  useEffect(() => {
-    let intervalId: ReturnType<typeof setInterval> | undefined
-    let fallbackTimer: ReturnType<typeof setTimeout> | undefined
-
-    const checkShaderReady = () => {
-      if (shaderContainerRef.current) {
-        const canvas = shaderContainerRef.current.querySelector("canvas")
-        if (canvas && canvas.width > 0 && canvas.height > 0) {
-          setIsShaderLoaded(true)
-          if (intervalId) clearInterval(intervalId)
-          if (fallbackTimer) clearTimeout(fallbackTimer)
-          return true
-        }
-      }
-      return false
-    }
-
-    if (checkShaderReady()) return
-
-    intervalId = setInterval(() => {
-      checkShaderReady()
-    }, 100)
-
-    fallbackTimer = setTimeout(() => {
-      if (intervalId) clearInterval(intervalId)
-      setIsShaderLoaded(true)
-    }, 1500)
-
-    return () => {
-      if (intervalId) clearInterval(intervalId)
-      if (fallbackTimer) clearTimeout(fallbackTimer)
-    }
-  }, [])
-
   return (
     <div className="h-screen relative overflow-hidden bg-background">
       <GrainOverlay />
 
-      {/* WebGL Shader Background */}
-      <div
-        ref={shaderContainerRef}
-        className={`fixed inset-0 z-0 transition-opacity duration-700 ${isShaderLoaded ? "opacity-100" : "opacity-0"}`}
-        style={{ contain: "strict" }}
-      >
-        <Shader className="h-full w-full">
-          <Swirl
-            colorA="#1275d8"
-            colorB="#e19136"
-            speed={0.8}
-            detail={0.8}
-            blend={50}
-            coarseX={40}
-            coarseY={40}
-            mediumX={40}
-            mediumY={40}
-            fineX={40}
-            fineY={40}
-          />
-          <ChromaFlow
-            baseColor="#0066ff"
-            upColor="#0066ff"
-            downColor="#d1d1d1"
-            leftColor="#e19136"
-            rightColor="#e19136"
-            intensity={0.9}
-            radius={1.8}
-            momentum={25}
-            maskType="alpha"
-            opacity={0.97}
-          />
-        </Shader>
-        {/* Dark overlay for better content contrast */}
-        <div className="absolute inset-0 bg-black/20" />
-      </div>
+      {/* WebGL Shader Background — lazy loaded, no SSR */}
+      <ShaderBackground />
 
       {/* Mobile Drawer */}
       <Drawer.Root direction="left" open={drawerOpen} onOpenChange={setDrawerOpen}>
@@ -105,7 +40,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             className="fixed inset-y-0 left-0 z-50 w-72 md:hidden focus:outline-none"
             aria-label="Navigation menu"
           >
-            <div className="h-full p-4 overflow-y-auto backdrop-blur-[40px] bg-white/[0.12] border-r border-white/20">
+            <div className="h-full p-4 overflow-y-auto backdrop-blur-[20px] bg-white/[0.12] border-r border-white/20">
               <SidebarNav onNavigate={handleNavigate} />
             </div>
           </Drawer.Content>
@@ -113,16 +48,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       </Drawer.Root>
 
       {/* Content Layer */}
-      <div
-        className={`relative z-10 p-4 md:p-6 flex flex-col md:grid md:grid-cols-12 md:gap-6 h-screen transition-opacity duration-700 ${
-          isShaderLoaded ? "opacity-100" : "opacity-0"
-        }`}
-      >
+      <div className="relative z-10 p-4 md:p-6 flex flex-col md:grid md:grid-cols-12 md:gap-6 h-screen">
         {/* Mobile Header */}
         <div className="flex items-center gap-3 mb-4 md:hidden">
           <button
             onClick={() => setDrawerOpen(true)}
-            className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white active:bg-white/20 transition-colors"
+            className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white active:bg-white/20 transition-colors"
             aria-label="Open menu"
           >
             <Menu className="h-5 w-5" />

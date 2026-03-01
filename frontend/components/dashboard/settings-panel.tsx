@@ -18,9 +18,10 @@ export function SettingsPanel() {
 
   // Fetch user settings on mount
   useEffect(() => {
+    const controller = new AbortController()
     const fetchSettings = async () => {
       try {
-        const res = await fetch("/api/user/settings")
+        const res = await fetch("/api/user/settings", { signal: controller.signal })
         if (res.ok) {
           const data = await res.json()
           setMetaPixelId(data.meta_pixel_id || "")
@@ -28,12 +29,14 @@ export function SettingsPanel() {
           setIsCapiTokenSet(!!data.meta_access_token_set)
         }
       } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return
         console.error("Failed to fetch settings:", error)
       } finally {
-        setIsLoadingPixel(false)
+        if (!controller.signal.aborted) setIsLoadingPixel(false)
       }
     }
     fetchSettings()
+    return () => controller.abort()
   }, [])
 
   // Save Meta Pixel ID
