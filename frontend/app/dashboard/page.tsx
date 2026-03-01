@@ -1,10 +1,11 @@
 import { Suspense } from "react"
-import { CRMDashboard } from "@/components/dashboard/crm-dashboard"
+import { QRCodePage } from "./qr-code-page"
 
+// Default /dashboard route shows the QR Code tab
 export default function DashboardPage() {
   return (
     <Suspense>
-      <CRMDashboard />
+      <QRCodePage />
     </Suspense>
   )
 }

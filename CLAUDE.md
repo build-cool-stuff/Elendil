@@ -60,22 +60,33 @@ QR scan → GET /go/[slug] (Edge, <50ms)
 ```
 
 ## Key Files
+- Dashboard layout: `frontend/app/dashboard/layout.tsx` (Client — shared sidebar, WebGL shaders, mobile drawer)
+- Dashboard pages: `frontend/app/dashboard/` (nested routes: `page.tsx`, `billing/`, `settings/`, `support/`, `map/`, `campaigns/`)
+- Sidebar nav: `frontend/components/dashboard/sidebar-nav.tsx` (Link-based routing with `usePathname()`)
 - QR redirect: `frontend/app/go/[slug]/route.ts` (Edge)
 - Bridge page: `frontend/app/go/[slug]/bridge/page.tsx` (Client)
 - Tracking endpoint: `frontend/app/api/go/[slug]/track/route.ts` (Edge)
-- Dashboard: `frontend/components/dashboard/crm-dashboard.tsx`
-- Billing UI: `frontend/components/dashboard/billing-panel.tsx` (status, spend, projections)
-- Billing alerts: `frontend/components/dashboard/billing-warnings.tsx` (grace period, degraded warnings)
-- QR generator: `frontend/components/dashboard/qr-code-generator.tsx`
+- Dashboard components: `frontend/components/dashboard/` (crm-dashboard.tsx, billing-panel.tsx, billing-warnings.tsx, qr-code-generator.tsx, settings-panel.tsx, support-panel.tsx)
 - Edge utils: `frontend/lib/edge/` (bigdatacloud, meta-capi, encryption, cookies, geo, user-agent, supabase-edge, index)
 - Stripe billing: `frontend/lib/stripe/` (client.ts, billing.ts, billing-check.ts)
 - Supabase clients: `frontend/lib/supabase/` (client.ts=browser+Clerk JWT, server.ts=secret key, ensure-user.ts=sync, types.ts)
 - QR service: `frontend/lib/services/qr-code.service.ts`
 - Auth middleware: `frontend/middleware.ts`
 
+## Dashboard Routing
+The dashboard uses Next.js App Router nested routes with a shared `layout.tsx`:
+- `/dashboard` — QR Code Generator (default tab)
+- `/dashboard/map` — Heat Map (coming soon)
+- `/dashboard/campaigns` — Meta Campaigns (coming soon)
+- `/dashboard/billing` — Billing & usage panel (handles Stripe `?billing=success` callback)
+- `/dashboard/settings` — Meta Pixel, CAPI token, appearance
+- `/dashboard/support` — Founder contact
+
+The layout persists the WebGL shader background, sidebar nav, mobile drawer, and billing warnings across all tab navigations. Navigation uses `<Link>` with `usePathname()` for active state.
+
 ## Routes
 - **Public:** `/`, `/login`, `/signup`, `/go/[slug]`, `/go/[slug]/bridge`, `/q/[code]` (alternate QR lookup)
-- **Protected:** `/dashboard`, `/api/campaigns`, `/api/campaigns/[id]`, `/api/user/settings`, `/api/billing/*`, `/api/scans`
+- **Protected:** `/dashboard/*`, `/api/campaigns`, `/api/campaigns/[id]`, `/api/user/settings`, `/api/billing/*`, `/api/scans`
 - **Billing API:** `/api/billing/setup` (checkout session), `/api/billing/portal` (Stripe customer portal), `/api/billing/status` (comprehensive billing status)
 - **Webhooks:** `/api/webhooks/clerk` (Svix-verified user sync), `/api/webhooks/stripe` (signature-verified billing events)
 - **Internal:** `/api/billing/emit-usage` (API key, Node-only Stripe meter emission)
