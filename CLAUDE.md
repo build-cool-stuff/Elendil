@@ -27,7 +27,7 @@ npx tsx scripts/seed-suburbs.ts  # Seed AU suburb data
 
 ## Code Style
 - Server Components by default; `"use client"` only for interactivity
-- PascalCase component files, kebab-case directories
+- kebab-case component files and directories (e.g., `billing-panel.tsx`, `sidebar-nav.tsx`)
 - Validate with Zod before Server Actions / API mutations
 - Use `requesting_user_id()` in all RLS policies
 - Geist font family, OKLCH color tokens, dark-mode only
@@ -60,13 +60,14 @@ QR scan → GET /go/[slug] (Edge, <50ms)
 ```
 
 ## Key Files
-- Dashboard layout: `frontend/app/dashboard/layout.tsx` (Client — shared sidebar, WebGL shaders, mobile drawer)
+- Dashboard layout: `frontend/app/dashboard/layout.tsx` (Server) → `frontend/components/dashboard/dashboard-shell.tsx` (Client — WebGL shaders, sidebar, mobile drawer)
 - Dashboard pages: `frontend/app/dashboard/` (nested routes: `page.tsx`, `billing/`, `settings/`, `support/`, `map/`, `campaigns/`)
+- Dashboard error: `frontend/app/dashboard/error.tsx` (error boundary for all dashboard routes)
 - Sidebar nav: `frontend/components/dashboard/sidebar-nav.tsx` (Link-based routing with `usePathname()`)
 - QR redirect: `frontend/app/go/[slug]/route.ts` (Edge)
 - Bridge page: `frontend/app/go/[slug]/bridge/page.tsx` (Client)
 - Tracking endpoint: `frontend/app/api/go/[slug]/track/route.ts` (Edge)
-- Dashboard components: `frontend/components/dashboard/` (crm-dashboard.tsx, billing-panel.tsx, billing-warnings.tsx, qr-code-generator.tsx, settings-panel.tsx, support-panel.tsx)
+- Dashboard components: `frontend/components/dashboard/` (dashboard-shell.tsx, billing-panel.tsx, billing-warnings.tsx, qr-code-generator.tsx, settings-panel.tsx, support-panel.tsx)
 - Edge utils: `frontend/lib/edge/` (bigdatacloud, meta-capi, encryption, cookies, geo, user-agent, supabase-edge, index)
 - Stripe billing: `frontend/lib/stripe/` (client.ts, billing.ts, billing-check.ts)
 - Supabase clients: `frontend/lib/supabase/` (client.ts=browser+Clerk JWT, server.ts=secret key, ensure-user.ts=sync, types.ts)
