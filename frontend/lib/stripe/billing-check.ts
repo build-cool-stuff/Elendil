@@ -7,7 +7,10 @@
  *
  * Degraded when:
  * - billing_active is false AND not in grace period
- * - accrued spend in current period >= $5,000 AUD
+ * - spend_cap_enabled is true AND accrued spend >= spend_cap_amount_aud
+ *
+ * When spend_cap_enabled is false, no spend-based degradation occurs —
+ * premium features continue regardless of accrued charges.
  *
  * Grace period: 24 hours after first payment failure. Premium features
  * continue working, but user sees urgent warning. After grace expires,
@@ -20,9 +23,7 @@
 
 import { createEdgeClient } from '@/lib/edge/supabase-edge'
 
-/** $5,000 AUD spend cap per billing period */
-const SPEND_CAP_AUD = 5000
-/** $20 AUD per scan */
+/** $20 AUD per scan — fixed price, not configurable per-user */
 const PRICE_PER_SCAN_AUD = 20
 
 export interface BillingCheckResult {
@@ -35,19 +36,28 @@ export interface BillingCheckResult {
   grace_period_end: string | null
   scan_count: number
   accrued_spend_aud: number
+  /** whether the spend cap is being enforced for this user */
+  spend_cap_enforced: boolean
 }
 
 /**
  * Check billing status from campaign data already loaded by lookupCampaign().
- * Only ONE extra query: count usage events in current billing period.
+ *
+ * When spend_cap_enabled is true, runs two extra queries (campaign IDs + scan count)
+ * in the current billing period and compares against spend_cap_amount_aud.
+ *
+ * When spend_cap_enabled is false, skips the count query entirely —
+ * no performance penalty for users who opt out of the cap.
  */
 export async function checkBillingFromCampaign(campaignData: {
   user_id: string
   billing_active: boolean
   stripe_customer_id: string | null
   grace_period_end: string | null
+  spend_cap_enabled: boolean
+  spend_cap_amount_aud: number
 }): Promise<BillingCheckResult> {
-  const { billing_active, grace_period_end } = campaignData
+  const { billing_active, grace_period_end, spend_cap_enabled, spend_cap_amount_aud } = campaignData
 
   // If billing is not active, check grace period
   if (!billing_active) {
@@ -60,10 +70,24 @@ export async function checkBillingFromCampaign(campaignData: {
       grace_period_end,
       scan_count: 0,
       accrued_spend_aud: 0,
+      spend_cap_enforced: spend_cap_enabled,
     }
   }
 
-  // Billing is active — check spend cap
+  // Billing is active — if spend cap is OFF, skip the count query entirely
+  if (!spend_cap_enabled) {
+    return {
+      billing_active: true,
+      degraded: false,
+      in_grace_period: false,
+      grace_period_end: null,
+      scan_count: 0,
+      accrued_spend_aud: 0,
+      spend_cap_enforced: false,
+    }
+  }
+
+  // Spend cap is ON — count first-scans to check against the cap
   const periodStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
   const supabase = createEdgeClient()
 
@@ -81,6 +105,7 @@ export async function checkBillingFromCampaign(campaignData: {
       grace_period_end: null,
       scan_count: 0,
       accrued_spend_aud: 0,
+      spend_cap_enforced: true,
     }
   }
 
@@ -102,15 +127,18 @@ export async function checkBillingFromCampaign(campaignData: {
       grace_period_end: null,
       scan_count: 0,
       accrued_spend_aud: 0,
+      spend_cap_enforced: true,
     }
   }
 
   const scanCount = count || 0
   const accruedSpendAud = scanCount * PRICE_PER_SCAN_AUD
-  const degraded = accruedSpendAud >= SPEND_CAP_AUD
+  const degraded = accruedSpendAud >= spend_cap_amount_aud
 
   if (degraded) {
-    console.warn(`[Billing] Spend cap reached: $${accruedSpendAud} AUD (${scanCount} scans)`)
+    console.warn(
+      `[Billing] Spend cap reached: $${accruedSpendAud} AUD / $${spend_cap_amount_aud} AUD cap (${scanCount} scans)`
+    )
   }
 
   return {
@@ -120,5 +148,6 @@ export async function checkBillingFromCampaign(campaignData: {
     grace_period_end: null,
     scan_count: scanCount,
     accrued_spend_aud: accruedSpendAud,
+    spend_cap_enforced: true,
   }
 }

@@ -15,7 +15,7 @@
 - `frontend/` — Next.js app (all development happens here)
 - `shared-components/` — Radix UI wrapper package
 - `scripts/` — Utility scripts (seed-suburbs.ts)
-- `supabase/migrations/` — 9 SQL migrations (001–009)
+- `supabase/migrations/` — 10 SQL migrations (001–010)
 
 ## Commands
 ```bash
@@ -89,7 +89,7 @@ The layout persists the WebGL shader background, sidebar nav, mobile drawer, and
 ## Routes
 - **Public:** `/`, `/login`, `/signup`, `/go/[slug]`, `/go/[slug]/bridge`, `/q/[code]` (alternate QR lookup)
 - **Protected:** `/dashboard/*`, `/api/campaigns`, `/api/campaigns/[id]`, `/api/user/settings`, `/api/billing/*`, `/api/scans`
-- **Billing API:** `/api/billing/setup` (checkout session), `/api/billing/portal` (Stripe customer portal), `/api/billing/status` (comprehensive billing status)
+- **Billing API:** `/api/billing/setup` (checkout session), `/api/billing/portal` (Stripe customer portal), `/api/billing/status` (comprehensive billing status), `/api/billing/spend-cap` (GET/PATCH spend cap settings)
 - **Webhooks:** `/api/webhooks/clerk` (Svix-verified user sync), `/api/webhooks/stripe` (signature-verified billing events)
 - **Internal:** `/api/billing/emit-usage` (API key, Node-only Stripe meter emission)
 - **Cron:** `/api/cron/retry-usage` (retry failed meter events, every 5 min), `/api/cron/enforce-grace` (degrade users after grace expiry, every 5 min)
@@ -98,7 +98,7 @@ The layout persists the WebGL shader background, sidebar nav, mobile drawer, and
 
 ### Pricing Model
 - **$20 AUD per unique scan** (first scan per device per campaign, deduplicated via `is_first_scan` cookie tracking)
-- **$5,000 AUD monthly spend cap** — prevents runaway charges (250 first scans max before degradation)
+- **Configurable monthly spend cap** — per-user, default $5,000 AUD (toggle on/off + adjustable amount via dashboard)
 - **Billing cycle:** Monthly, in arrears (charged after usage accrues)
 - **No minimum:** Users pay $0 if they get no scans
 
@@ -136,7 +136,7 @@ customer.subscription.deleted webhook
 ```
 
 ### Degradation Triggers
-1. **Spend cap reached:** `accrued_spend >= $5,000 AUD` (250 first scans × $20) — resets next billing period
+1. **Spend cap reached:** `spend_cap_enabled && accrued_spend >= spend_cap_amount_aud` (per-user, default $5,000 AUD) — resets next billing period
 2. **Payment failed + grace expired:** 24-hour grace, then degraded by cron
 3. **Subscription canceled:** Immediate degradation (no grace for voluntary cancel)
 
@@ -158,6 +158,8 @@ customer.subscription.deleted webhook
 - `billing_active` — Subscription is active/trialing (boolean, default false)
 - `grace_period_end` — When 24-hour grace period expires
 - `degraded_since` — When degradation started (used for missed leads counting)
+- `spend_cap_enabled` — Whether the spend cap is enforced (boolean, default true)
+- `spend_cap_amount_aud` — Dollar threshold for cap (numeric, default 5000, min 100)
 
 **billing_subscriptions table:** Tracks Stripe subscription lifecycle (status, period dates, cancellation)
 
@@ -167,9 +169,10 @@ customer.subscription.deleted webhook
 When degraded, the dashboard shows "X leads missed since [date]" — counts `is_first_scan = true` scans since `degraded_since` timestamp. Warns users about lost Meta Pixel events and precision geo data.
 
 ### Billing Check in Edge Runtime
-`checkBillingFromCampaign()` in `lib/stripe/billing-check.ts` runs on every QR scan:
-- Piggybacks on campaign lookup (user billing fields included)
-- One extra count query for current-period first scans
+`checkBillingFromCampaign()` in `lib/stripe/billing-check.ts` runs on every QR scan when spend_cap_enabled is true:
+- Piggybacks on campaign lookup (user billing + spend cap fields included)
+- Two extra queries: campaign IDs + scan count for current billing period
+- When spend_cap_enabled is false, skips the count queries entirely (zero performance overhead)
 - **Fail-open policy:** If count query fails, returns `degraded: false` (allow premium features)
 
 ### First Scan Deduplication (Cookie-Based)
@@ -189,6 +192,7 @@ When degraded, the dashboard shows "X leads missed since [date]" — counts `is_
 7. `007_stripe_billing.sql` — Billing infrastructure (billing_subscriptions, scan_usage_events, user billing columns)
 8. `008_remove_scan_cap.sql` — Removed per-user scan limits
 9. `009_billing_grace_period.sql` — Grace period + degradation tracking columns
+10. `010_spend_cap_controls.sql` — Per-user spend cap on/off toggle + adjustable amount
 
 ## Env Vars
 ```
@@ -203,7 +207,7 @@ CRON_SECRET, INTERNAL_API_KEY
 ```
 
 ## What's Built
-QR gen + campaign CRUD, Edge redirect + bridge, BigDataCloud geo, Meta CAPI, Clerk auth + Supabase sync, cookie tracking, dashboard with filters + billing panel + billing warnings, landing page with WebGL shaders, Stripe metered billing ($20 AUD/scan, $5000 spend cap, 24h grace period, write-ahead meter events with retry queue, missed leads tracking)
+QR gen + campaign CRUD, Edge redirect + bridge, BigDataCloud geo, Meta CAPI, Clerk auth + Supabase sync, cookie tracking, dashboard with filters + billing panel + billing warnings, landing page with WebGL shaders, Stripe metered billing ($20 AUD/scan, configurable spend cap with on/off toggle, 24h grace period, write-ahead meter events with retry queue, missed leads tracking, spend cap enforced at Edge redirect level)
 
 ## Not Yet Built
 Analytics dashboard (heat maps, charts), Meta OAuth flow, campaign attribution/ROI, custom domains, A/B testing
