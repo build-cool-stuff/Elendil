@@ -1,11 +1,10 @@
-import { Suspense } from "react"
-import { QRCodePage } from "./qr-code-page"
+"use client"
 
-// Default /dashboard route shows the QR Code tab
+import { QRCodeGenerator } from "@/components/dashboard/qr-code-generator"
+import { useCampaigns } from "@/hooks/use-campaigns"
+
 export default function DashboardPage() {
-  return (
-    <Suspense>
-      <QRCodePage />
-    </Suspense>
-  )
+  const { campaigns, isLoading, mutate } = useCampaigns()
+
+  return <QRCodeGenerator campaigns={campaigns} isLoading={isLoading} mutate={mutate} />
 }

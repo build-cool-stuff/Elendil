@@ -56,9 +56,9 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const isActive = (href: string) => {
     // /dashboard is the QR Code tab (default/index route)
     if (href === "/dashboard") {
-      return pathname === "/dashboard" || pathname === "/dashboard/qr-code"
+      return pathname === "/dashboard"
     }
-    return pathname === href
+    return pathname === href || pathname.startsWith(href + "/")
   }
 
   const handleLogout = async () => {
