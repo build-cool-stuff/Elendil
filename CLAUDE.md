@@ -15,7 +15,7 @@
 - `frontend/` — Next.js app (all development happens here)
 - `shared-components/` — Radix UI wrapper package
 - `scripts/` — Utility scripts (seed-suburbs.ts)
-- `supabase/migrations/` — 10 SQL migrations (001–010)
+- `supabase/migrations/` — 11 SQL migrations (001–011)
 
 ## Commands
 ```bash
@@ -72,7 +72,11 @@ QR scan → GET /go/[slug] (Edge, <50ms)
 - Stripe billing: `frontend/lib/stripe/` (client.ts, billing.ts, billing-check.ts)
 - Supabase clients: `frontend/lib/supabase/` (client.ts=browser+Clerk JWT, server.ts=secret key, ensure-user.ts=sync, types.ts)
 - QR service: `frontend/lib/services/qr-code.service.ts`
-- Auth middleware: `frontend/middleware.ts`
+- Auth middleware: `frontend/middleware.ts` (also handles admin→/admin redirect + /dashboard→/dashboard/qr-codes redirect)
+- Admin panel: `frontend/app/admin/` (dashboard, users, billing, tickets, tasks, notes)
+- Admin API: `frontend/app/api/admin/` (stats, users, tickets, tasks, notes)
+- Admin auth: `frontend/lib/admin/auth.ts` (requireAdmin + checkAdminApi guards)
+- Admin shell: `frontend/components/admin/admin-shell.tsx` (sidebar + layout)
 
 ## Dashboard Routing
 The dashboard uses Next.js App Router nested routes with a shared `layout.tsx`. Every tab has a unique slug:
@@ -88,7 +92,7 @@ The layout persists the WebGL shader background, sidebar nav, mobile drawer, and
 
 ## Routes
 - **Public:** `/`, `/login`, `/signup`, `/go/[slug]`, `/go/[slug]/bridge`, `/q/[code]` (alternate QR lookup)
-- **Protected:** `/dashboard/*`, `/api/campaigns`, `/api/campaigns/[id]`, `/api/user/settings`, `/api/billing/*`, `/api/scans`
+- **Protected:** `/dashboard/*`, `/admin/*`, `/api/campaigns`, `/api/campaigns/[id]`, `/api/user/settings`, `/api/billing/*`, `/api/scans`, `/api/admin/*`
 - **Billing API:** `/api/billing/setup` (checkout session), `/api/billing/portal` (Stripe customer portal), `/api/billing/status` (comprehensive billing status), `/api/billing/spend-cap` (GET/PATCH spend cap settings)
 - **Webhooks:** `/api/webhooks/clerk` (Svix-verified user sync), `/api/webhooks/stripe` (signature-verified billing events)
 - **Internal:** `/api/billing/emit-usage` (API key, Node-only Stripe meter emission)
@@ -192,7 +196,8 @@ When degraded, the dashboard shows "X leads missed since [date]" — counts `is_
 7. `007_stripe_billing.sql` — Billing infrastructure (billing_subscriptions, scan_usage_events, user billing columns)
 8. `008_remove_scan_cap.sql` — Removed per-user scan limits
 9. `009_billing_grace_period.sql` — Grace period + degradation tracking columns
-10. `010_spend_cap_controls.sql` — Per-user spend cap on/off toggle + adjustable amount
+10. `010_admin_panel.sql` — Admin panel tables (support_tickets, ticket_replies, admin_notes, admin_tasks)
+11. `011_spend_cap_controls.sql` — Per-user spend cap on/off toggle + adjustable amount
 
 ## Env Vars
 ```
@@ -209,7 +214,7 @@ NEXT_PUBLIC_ADMIN_USER_ID (same value, client-side admin UI toggle)
 ```
 
 ## What's Built
-QR gen + campaign CRUD, Edge redirect + bridge, BigDataCloud geo, Meta CAPI, Clerk auth + Supabase sync, cookie tracking, dashboard with filters + billing panel + billing warnings, landing page with WebGL shaders, Stripe metered billing ($20 AUD/scan, configurable spend cap with on/off toggle, 24h grace period, write-ahead meter events with retry queue, missed leads tracking, spend cap enforced at Edge redirect level)
+QR gen + campaign CRUD, Edge redirect + bridge, BigDataCloud geo, Meta CAPI, Clerk auth + Supabase sync, cookie tracking, dashboard with filters + billing panel + billing warnings, landing page with WebGL shaders, Stripe metered billing ($20 AUD/scan, configurable spend cap with on/off toggle, 24h grace period, write-ahead meter events with retry queue, missed leads tracking, spend cap enforced at Edge redirect level), admin panel (users, billing, tickets, tasks, notes)
 
 ## Not Yet Built
 Analytics dashboard (heat maps, charts), Meta OAuth flow, campaign attribution/ROI, custom domains, A/B testing
@@ -238,3 +243,6 @@ After making code changes, always commit and push to GitHub by default:
 1. Stage the changed files (specific files, not `git add -A`)
 2. Write a short, clear commit message describing the change
 3. Push to the current branch on GitHub
+
+### Multi-Agent Teams
+When spawning multiple review/research agents, ALWAYS run them in parallel (single message with multiple Agent tool calls). Never run agents sequentially when they have no dependencies on each other.
