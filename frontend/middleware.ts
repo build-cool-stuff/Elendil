@@ -25,13 +25,17 @@ export default clerkMiddleware(async (auth, request) => {
   // Clerk sends everyone to /dashboard — admin should land on /admin instead
   // ?from=user bypass lets admin explicitly visit the user dashboard via sidebar link
   const { pathname, searchParams } = request.nextUrl
-  if (pathname === "/dashboard" && !searchParams.has("from")) {
-    const { userId } = await auth()
-    if (userId && userId === process.env.ADMIN_USER_ID) {
-      return NextResponse.redirect(new URL("/admin", request.url))
+  if (pathname === "/dashboard") {
+    const fromUser = searchParams.has("from")
+
+    if (!fromUser) {
+      const { userId } = await auth()
+      if (userId && userId === process.env.ADMIN_USER_ID) {
+        return NextResponse.redirect(new URL("/admin", request.url))
+      }
     }
-    // Non-admin users: redirect /dashboard to /dashboard/qr-codes (moved from next.config.ts
-    // so this runs after the admin check — config-level redirects fire before middleware)
+
+    // Both admin-with-?from=user and normal users land on /dashboard/qr-codes
     return NextResponse.redirect(new URL("/dashboard/qr-codes", request.url))
   }
 })
