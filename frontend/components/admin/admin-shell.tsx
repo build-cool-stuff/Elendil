@@ -162,7 +162,7 @@ function SidebarContent({
 
       {/* Bottom actions */}
       <div className="mt-auto pt-4 border-t border-white/10 flex flex-col gap-1">
-        <Link href="/dashboard" onClick={onNavigate}>
+        <Link href="/dashboard?from=user" onClick={onNavigate}>
           <Button variant="glass" className="w-full h-10 px-3 flex items-center justify-start">
             <span className="w-5 flex items-center justify-center shrink-0">
               <ArrowLeft className="h-4 w-4" />

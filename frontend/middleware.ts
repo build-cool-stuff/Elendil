@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server"
+import { NextResponse } from "next/server"
 
 const isPublicRoute = createRouteMatcher([
   "/",                   // Landing page (public)
@@ -18,6 +19,17 @@ const isPublicRoute = createRouteMatcher([
 export default clerkMiddleware(async (auth, request) => {
   if (!isPublicRoute(request)) {
     await auth.protect()
+  }
+
+  // Auto-redirect admin to /admin after login
+  // Clerk sends everyone to /dashboard — admin should land on /admin instead
+  // ?from=user bypass lets admin explicitly visit the user dashboard via sidebar link
+  const { pathname, searchParams } = request.nextUrl
+  if (pathname === "/dashboard" && !searchParams.has("from")) {
+    const { userId } = await auth()
+    if (userId && userId === process.env.ADMIN_USER_ID) {
+      return NextResponse.redirect(new URL("/admin", request.url))
+    }
   }
 })
 
