@@ -31,7 +31,28 @@ export async function GET() {
     return NextResponse.json({ error: 'User not found' }, { status: 404 })
   }
 
-  // Per-user spend cap settings (defaults match migration 010)
+  // Inline grace enforcement — if grace expired but not yet degraded, degrade now.
+  // Compensates for Vercel's 24h cron limit by enforcing on every billing status poll.
+  if (
+    user.grace_period_end &&
+    new Date(user.grace_period_end) <= new Date() &&
+    !user.degraded_since
+  ) {
+    await supabase
+      .from('users')
+      .update({
+        degraded_since: new Date().toISOString(),
+        billing_active: false,
+        grace_period_end: null,
+      })
+      .eq('id', user.id)
+
+    user.billing_active = false
+    user.degraded_since = new Date().toISOString()
+    user.grace_period_end = null
+  }
+
+  // Per-user spend cap settings (defaults match migration 011)
   const spendCapEnabled = user.spend_cap_enabled ?? true
   const spendCapAud = user.spend_cap_amount_aud ?? 5000
 
@@ -185,6 +206,55 @@ export async function GET() {
   const degraded =
     (!user.billing_active && !inGrace) ||
     (spendCapEnabled && accruedSpendAud >= spendCapAud)
+
+  // Inline meter event retry — fire-and-forget to avoid blocking the response.
+  // Compensates for Vercel's 24h cron limit by retrying on every billing status poll.
+  if (user.stripe_customer_id) {
+    void (async () => {
+      try {
+        const { data: pendingEvents } = await supabase
+          .from('scan_usage_events')
+          .select('id, idempotency_key, stripe_customer_id, retry_count, created_at')
+          .eq('user_id', user.id)
+          .in('status', ['pending', 'failed'])
+          .lt('retry_count', 5)
+          .order('created_at', { ascending: true })
+          .limit(5)
+
+        if (!pendingEvents?.length) return
+
+        const stripe = getStripe()
+        const meterEventName = process.env.STRIPE_METER_EVENT_NAME || 'qr_scan'
+
+        for (const event of pendingEvents) {
+          try {
+            await stripe.billing.meterEvents.create({
+              event_name: meterEventName,
+              payload: { value: '1', stripe_customer_id: event.stripe_customer_id },
+              identifier: event.idempotency_key,
+              timestamp: Math.floor(new Date(event.created_at).getTime() / 1000),
+            })
+            await supabase
+              .from('scan_usage_events')
+              .update({ status: 'sent', sent_at: new Date().toISOString() })
+              .eq('id', event.id)
+          } catch (err) {
+            const newRetryCount = event.retry_count + 1
+            await supabase
+              .from('scan_usage_events')
+              .update({
+                status: newRetryCount >= 5 ? 'dead_letter' : 'failed',
+                retry_count: newRetryCount,
+                last_error: err instanceof Error ? err.message : String(err),
+              })
+              .eq('id', event.id)
+          }
+        }
+      } catch {
+        // Silent — fire-and-forget, cron is the fallback
+      }
+    })()
+  }
 
   return NextResponse.json({
     billing_active: user.billing_active,

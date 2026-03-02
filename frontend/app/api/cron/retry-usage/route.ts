@@ -6,7 +6,8 @@ const MAX_RETRIES = 5
 
 /**
  * GET /api/cron/retry-usage
- * Retries failed scan_usage_events. Called by Vercel Cron (every 5 min).
+ * Retries failed scan_usage_events. Called by Vercel Cron (daily at midnight UTC).
+ * Inline retries also happen via /api/billing/status on every poll (~5s per active user).
  * Protected by CRON_SECRET.
  */
 export async function GET(request: NextRequest) {

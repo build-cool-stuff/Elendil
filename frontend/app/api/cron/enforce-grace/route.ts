@@ -5,7 +5,9 @@ import { createServerClient } from '@/lib/supabase/server'
  * GET /api/cron/enforce-grace
  * Enforces grace period expiry. Finds users whose grace period has elapsed
  * and sets degraded_since to begin tracking missed leads.
- * Called by Vercel Cron (every 5 min). Protected by CRON_SECRET.
+ * Called by Vercel Cron (daily at midnight UTC). Inline enforcement also
+ * happens via /api/billing/status on every poll (~5s per active user).
+ * Protected by CRON_SECRET.
  */
 export async function GET(request: NextRequest) {
   const cronSecret = request.headers.get('authorization')?.replace('Bearer ', '')
