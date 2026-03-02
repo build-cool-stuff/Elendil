@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useClerk } from "@clerk/nextjs"
+import { useClerk, useUser } from "@clerk/nextjs"
 import { Button } from "shared-components"
 import {
   Settings,
@@ -12,6 +12,7 @@ import {
   MapPin,
   Facebook,
   CreditCard,
+  Shield,
 } from "lucide-react"
 
 type NavItem = {
@@ -52,6 +53,8 @@ function NavLink({ item, isActive, onClick }: { item: NavItem; isActive: boolean
 export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
   const { signOut } = useClerk()
+  const { user } = useUser()
+  const isAdmin = user?.id === process.env.NEXT_PUBLIC_ADMIN_USER_ID
 
   const isActive = (href: string) => {
     return pathname === href || pathname.startsWith(href + "/")
@@ -91,6 +94,20 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           {adminNavItems.map((item) => (
             <NavLink key={item.href} item={item} isActive={isActive(item.href)} onClick={onNavigate} />
           ))}
+          {isAdmin && (
+            <Button
+              variant="glass"
+              className="w-full h-11 px-3 flex items-center justify-start bg-blue-500/10 hover:bg-blue-500/20"
+              asChild
+            >
+              <Link href="/admin" onClick={onNavigate}>
+                <span className="w-6 flex items-center justify-center shrink-0">
+                  <Shield className="h-5 w-5 text-blue-400" />
+                </span>
+                <span className="ml-3 text-sm font-medium text-blue-300">Admin Panel</span>
+              </Link>
+            </Button>
+          )}
           <Button
             variant="glass"
             className="w-full h-11 px-3 flex items-center justify-start"

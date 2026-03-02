@@ -1,7 +1,16 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
+import { z } from 'zod'
 import { createServerClient } from '@/lib/supabase/server'
 import { ensureUserExists } from '@/lib/supabase/ensure-user'
+
+const spendCapSchema = z.object({
+  spend_cap_enabled: z.boolean().optional(),
+  spend_cap_amount_aud: z.number().min(100).max(1000000).optional(),
+}).refine(
+  (data) => data.spend_cap_enabled !== undefined || data.spend_cap_amount_aud !== undefined,
+  { message: 'Provide spend_cap_enabled and/or spend_cap_amount_aud' }
+)
 
 /**
  * GET /api/billing/spend-cap
@@ -58,40 +67,29 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Failed to sync user' }, { status: 500 })
   }
 
-  const body = await request.json()
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  const parsed = spendCapSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message || 'Invalid input' },
+      { status: 400 }
+    )
+  }
+
   const updateData: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   }
-
-  // Validate spend_cap_enabled (binary on/off toggle)
-  if (body.spend_cap_enabled !== undefined) {
-    if (typeof body.spend_cap_enabled !== 'boolean') {
-      return NextResponse.json(
-        { error: 'spend_cap_enabled must be a boolean (true or false)' },
-        { status: 400 }
-      )
-    }
-    updateData.spend_cap_enabled = body.spend_cap_enabled
+  if (parsed.data.spend_cap_enabled !== undefined) {
+    updateData.spend_cap_enabled = parsed.data.spend_cap_enabled
   }
-
-  // Validate spend_cap_amount_aud (the dollar threshold)
-  if (body.spend_cap_amount_aud !== undefined) {
-    const amount = Number(body.spend_cap_amount_aud)
-    if (isNaN(amount) || amount < 100 || amount > 1000000) {
-      return NextResponse.json(
-        { error: 'spend_cap_amount_aud must be between $100 and $1,000,000 AUD' },
-        { status: 400 }
-      )
-    }
-    updateData.spend_cap_amount_aud = amount
-  }
-
-  // Require at least one field to update
-  if (Object.keys(updateData).length === 1) {
-    return NextResponse.json(
-      { error: 'No valid fields to update. Provide spend_cap_enabled and/or spend_cap_amount_aud.' },
-      { status: 400 }
-    )
+  if (parsed.data.spend_cap_amount_aud !== undefined) {
+    updateData.spend_cap_amount_aud = parsed.data.spend_cap_amount_aud
   }
 
   const supabase = createServerClient()

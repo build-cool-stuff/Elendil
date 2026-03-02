@@ -188,7 +188,7 @@ export async function GET() {
 
   return NextResponse.json({
     billing_active: user.billing_active,
-    stripe_customer_id: user.stripe_customer_id,
+    has_stripe_customer: !!user.stripe_customer_id,
     degraded,
     subscription: subscription
       ? {

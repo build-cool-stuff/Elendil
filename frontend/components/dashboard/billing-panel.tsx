@@ -135,7 +135,7 @@ export function BillingPanel() {
   }
 
   // No billing set up yet (no Stripe customer created)
-  if (!billing?.stripe_customer_id) {
+  if (!billing?.has_stripe_customer) {
     return <NoBillingState />
   }
 

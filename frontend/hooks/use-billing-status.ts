@@ -2,7 +2,7 @@ import useSWR from "swr"
 
 export interface BillingStatus {
   billing_active: boolean
-  stripe_customer_id: string | null
+  has_stripe_customer: boolean
   degraded: boolean
   subscription: {
     id: string
