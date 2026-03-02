@@ -68,6 +68,9 @@ export interface EdgeCampaignData {
   // Grace period fields
   grace_period_end: string | null
   degraded_since: string | null
+  // Spend cap controls — determines whether cap is enforced and at what threshold
+  spend_cap_enabled: boolean
+  spend_cap_amount_aud: number
 }
 
 /**
@@ -107,6 +110,8 @@ export async function lookupCampaign(
           billing_active,
           grace_period_end,
           degraded_since,
+          spend_cap_enabled,
+          spend_cap_amount_aud,
           meta_integrations (
             pixel_id,
             access_token,
@@ -174,6 +179,9 @@ export async function lookupCampaign(
     // Grace period fields
     grace_period_end: userData?.grace_period_end || null,
     degraded_since: userData?.degraded_since || null,
+    // Spend cap controls (defaults match migration 010)
+    spend_cap_enabled: userData?.spend_cap_enabled ?? true,
+    spend_cap_amount_aud: userData?.spend_cap_amount_aud ?? 5000,
   }
 }
 

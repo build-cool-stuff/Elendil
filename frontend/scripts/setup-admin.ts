@@ -35,9 +35,9 @@ if (!CLERK_SECRET_KEY) {
   process.exit(1)
 }
 
-// ─── Admin credentials ───
-const ADMIN_EMAIL = "admin@elendil.com.au"
-const ADMIN_PASSWORD = "Elendil-Admin-2026!"
+// ─── Admin credentials (from env vars, with defaults for dev) ───
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@elendil.com.au"
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Elendil-Admin-2026!"
 
 async function main() {
   console.log("\n╔═══════════════════════════════╗")

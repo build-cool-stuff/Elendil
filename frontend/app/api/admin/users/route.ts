@@ -28,7 +28,11 @@ export async function GET(request: NextRequest) {
     .range(offset, offset + limit - 1)
 
   if (search) {
-    query = query.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`)
+    // Sanitize search input to prevent PostgREST filter injection
+    const sanitized = search.replace(/[%_(),.*\\]/g, '')
+    if (sanitized) {
+      query = query.or(`email.ilike.%${sanitized}%,full_name.ilike.%${sanitized}%`)
+    }
   }
 
   const { data: users, error, count } = await query

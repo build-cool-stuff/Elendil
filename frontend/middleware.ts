@@ -30,6 +30,9 @@ export default clerkMiddleware(async (auth, request) => {
     if (userId && userId === process.env.ADMIN_USER_ID) {
       return NextResponse.redirect(new URL("/admin", request.url))
     }
+    // Non-admin users: redirect /dashboard to /dashboard/qr-codes (moved from next.config.ts
+    // so this runs after the admin check — config-level redirects fire before middleware)
+    return NextResponse.redirect(new URL("/dashboard/qr-codes", request.url))
   }
 })
 

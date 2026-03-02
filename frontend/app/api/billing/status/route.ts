@@ -6,11 +6,11 @@ import { getStripe } from '@/lib/stripe/client'
 export const maxDuration = 30
 
 const PRICE_PER_SCAN_AUD = 20
-const SPEND_CAP_AUD = 5000
 
 /**
  * GET /api/billing/status
  * Returns billing status, usage count, accrued spend, and next invoice preview.
+ * Spend cap values are now per-user (spend_cap_enabled + spend_cap_amount_aud).
  */
 export async function GET() {
   const { userId: clerkId } = await auth()
@@ -20,16 +20,20 @@ export async function GET() {
 
   const supabase = createServerClient()
 
-  // Get user with billing info
+  // Get user with billing info — includes spend cap settings
   const { data: user, error: userError } = await supabase
     .from('users')
-    .select('id, stripe_customer_id, billing_active, grace_period_end, degraded_since')
+    .select('id, stripe_customer_id, billing_active, grace_period_end, degraded_since, spend_cap_enabled, spend_cap_amount_aud')
     .eq('clerk_id', clerkId)
     .single()
 
   if (userError || !user) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 })
   }
+
+  // Per-user spend cap settings (defaults match migration 010)
+  const spendCapEnabled = user.spend_cap_enabled ?? true
+  const spendCapAud = user.spend_cap_amount_aud ?? 5000
 
   // Get active subscription from DB
   let { data: subscription } = await supabase
@@ -119,7 +123,7 @@ export async function GET() {
 
   const campaignIds = (userCampaigns || []).map((c) => c.id)
 
-  // Count unique scans (first visit per device per campaign) for billing
+  // Count unique scans (first visit per device per campaign) for billing.
   // Repeat scans from the same device within the cookie window are not billed.
   // When the cookie expires (30/60/90 days), the next scan counts as new.
   let currentScanCount = 0
@@ -175,12 +179,16 @@ export async function GET() {
     missedLeadsCount = missedCount || 0
   }
 
-  // Degraded if: billing inactive (and not in grace) OR spend cap reached
-  const degraded = (!user.billing_active && !inGrace) || accruedSpendAud >= SPEND_CAP_AUD
+  // Degraded if:
+  // - billing inactive (and not in grace period), OR
+  // - spend cap enabled AND accrued spend >= user's cap amount
+  const degraded =
+    (!user.billing_active && !inGrace) ||
+    (spendCapEnabled && accruedSpendAud >= spendCapAud)
 
   return NextResponse.json({
     billing_active: user.billing_active,
-    stripe_customer_id: user.stripe_customer_id,
+    has_stripe_customer: !!user.stripe_customer_id,
     degraded,
     subscription: subscription
       ? {
@@ -194,7 +202,8 @@ export async function GET() {
     usage: {
       scan_count: currentScanCount,
       accrued_spend_aud: accruedSpendAud,
-      spend_cap_aud: SPEND_CAP_AUD,
+      spend_cap_aud: spendCapAud,
+      spend_cap_enabled: spendCapEnabled,
       price_per_scan_aud: PRICE_PER_SCAN_AUD,
     },
     upcoming_invoice: upcomingInvoice,

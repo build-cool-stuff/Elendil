@@ -131,14 +131,6 @@
 }
 
 @layer utilities {
-  .glass-effect {
-    backdrop-filter: blur(25px) saturate(180%);
-    -webkit-backdrop-filter: blur(25px) saturate(180%);
-    background: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.4);
-  }
-
   .hover-lift {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -152,8 +144,23 @@
 /* Glass Card CSS Variables - can be adjusted in real-time */
 :root {
   --glass-opacity: 0.25;
-  --glass-blur: 40px;
+  --glass-blur: 20px;
   --glass-saturation: 180%;
+}
+
+/* Disable blur and animations for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --glass-blur: 0px;
+    --glass-saturation: 100%;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
 
 /* Glass Card Styles - Explicit CSS to ensure backdrop-filter works */

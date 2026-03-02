@@ -38,6 +38,9 @@ export interface Database {
           meta_encrypted_access_token: string | null
           meta_encryption_iv: string | null
           meta_encryption_version: number | null
+          // Spend cap controls (migration 010)
+          spend_cap_enabled: boolean
+          spend_cap_amount_aud: number
           created_at: string
           updated_at: string
         }
@@ -51,6 +54,8 @@ export interface Database {
           meta_encrypted_access_token?: string | null
           meta_encryption_iv?: string | null
           meta_encryption_version?: number | null
+          spend_cap_enabled?: boolean
+          spend_cap_amount_aud?: number
           created_at?: string
           updated_at?: string
         }
@@ -64,6 +69,8 @@ export interface Database {
           meta_encrypted_access_token?: string | null
           meta_encryption_iv?: string | null
           meta_encryption_version?: number | null
+          spend_cap_enabled?: boolean
+          spend_cap_amount_aud?: number
           created_at?: string
           updated_at?: string
         }

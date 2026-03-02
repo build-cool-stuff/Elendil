@@ -301,7 +301,7 @@ export function QRCodeGenerator({ campaigns, isLoading, mutate }: QRCodeGenerato
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                className="appearance-none bg-white/10 backdrop-blur-md border border-white/20 rounded-xl pl-9 pr-8 py-2 text-sm text-white font-medium shadow-lg shadow-black/10 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/30 cursor-pointer transition-all duration-200"
+                className="appearance-none bg-white/10 border border-white/20 rounded-xl pl-9 pr-8 py-2 text-sm text-white font-medium shadow-lg shadow-black/10 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/30 cursor-pointer transition-all duration-200"
               >
                 <option value="all" className="bg-zinc-900 text-white">All Campaigns</option>
                 <option value="active" className="bg-zinc-900 text-white">Active</option>

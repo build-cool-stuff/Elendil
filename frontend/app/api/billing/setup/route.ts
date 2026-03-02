@@ -70,8 +70,8 @@ export async function POST() {
         },
       ],
       payment_method_types: ['card'],
-      success_url: `${appUrl}/dashboard?billing=success`,
-      cancel_url: `${appUrl}/dashboard?billing=canceled`,
+      success_url: `${appUrl}/dashboard/billing?billing=success`,
+      cancel_url: `${appUrl}/dashboard/billing?billing=canceled`,
       subscription_data: {
         metadata: {
           supabase_user_id: user.id,
