@@ -96,7 +96,7 @@ export default function SignUpPage() {
           routing="path"
           path="/signup"
           signInUrl="/login"
-          forceRedirectUrl="/dashboard/qr-codes"
+          forceRedirectUrl="/dashboard"
         />
       </div>
     </main>
