@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Card, Button } from "shared-components"
+import { toast } from "sonner"
 import {
   TicketCheck,
   ChevronLeft,
@@ -73,11 +74,13 @@ export default function AdminTicketsPage() {
       const params = new URLSearchParams({ page: page.toString(), limit: "20" })
       if (statusFilter) params.set("status", statusFilter)
       const res = await fetch(`/api/admin/tickets?${params}`)
+      if (!res.ok) throw new Error("Failed to load tickets")
       const data = await res.json()
       setTickets(data.tickets || [])
       setTotalPages(data.pagination?.pages || 0)
       setTotal(data.pagination?.total || 0)
     } catch (err) {
+      toast.error("Failed to load tickets")
       console.error("Failed to fetch tickets:", err)
     } finally {
       setLoading(false)
@@ -90,9 +93,14 @@ export default function AdminTicketsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Support Tickets</h1>
-        <p className="text-white/50 text-sm mt-1">{total} total tickets</p>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center">
+          <TicketCheck className="h-5 w-5 text-yellow-400" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-white">Support Tickets</h1>
+          <p className="text-white/50 text-sm mt-1">{total} total tickets</p>
+        </div>
       </div>
 
       {/* Filters */}
@@ -102,10 +110,10 @@ export default function AdminTicketsPage() {
             <button
               key={f.value}
               onClick={() => { setStatusFilter(f.value); setPage(1) }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 min-h-[44px] ${
                 statusFilter === f.value
-                  ? "bg-white/15 text-white"
-                  : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/70"
+                  ? "bg-white/15 text-white scale-[1.02]"
+                  : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/70 scale-100"
               }`}
             >
               {f.label}
@@ -123,23 +131,24 @@ export default function AdminTicketsPage() {
             </Card>
           ))
         ) : tickets.length === 0 ? (
-          <Card variant="glass" className="p-12">
-            <div className="text-center text-white/40">
-              <TicketCheck className="h-10 w-10 mx-auto mb-3 opacity-50" />
-              <p>No tickets found</p>
+          <Card variant="glass" className="p-12 sm:p-16 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-4">
+              <TicketCheck className="h-8 w-8 text-white/30" />
             </div>
+            <p className="text-white/50 font-medium">No tickets found</p>
+            <p className="text-white/30 text-sm mt-1">Try a different filter</p>
           </Card>
         ) : (
           tickets.map((ticket) => {
             const StatusIcon = statusIcons[ticket.status] || AlertCircle
             return (
               <Link key={ticket.id} href={`/admin/tickets/${ticket.id}`}>
-                <Card variant="glass" className="p-5 hover:bg-white/[0.08] transition-colors cursor-pointer">
-                  <div className="flex items-start justify-between gap-4">
+                <Card variant="glass" className="p-4 sm:p-5 hover:ring-1 hover:ring-white/10 active:scale-[0.99] transition-all cursor-pointer">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <StatusIcon className={`h-4 w-4 shrink-0 ${statusColors[ticket.status]?.split(" ")[1] || "text-white/40"}`} />
-                        <h3 className="text-white font-medium truncate">{ticket.subject}</h3>
+                        <h3 className="text-white font-medium truncate text-sm sm:text-base">{ticket.subject}</h3>
                       </div>
                       <p className="text-white/40 text-sm line-clamp-1">{ticket.message}</p>
                       <div className="flex items-center gap-3 mt-2">
@@ -151,11 +160,11 @@ export default function AdminTicketsPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${priorityColors[ticket.priority] || ""}`}>
+                    <div className="flex items-center gap-2 shrink-0 self-start">
+                      <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${priorityColors[ticket.priority] || ""}`}>
                         {ticket.priority}
                       </span>
-                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${statusColors[ticket.status] || ""}`}>
+                      <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${statusColors[ticket.status] || ""}`}>
                         {ticket.status.replace("_", " ")}
                       </span>
                     </div>
@@ -172,10 +181,10 @@ export default function AdminTicketsPage() {
         <div className="flex items-center justify-between">
           <p className="text-white/40 text-sm">Page {page} of {totalPages}</p>
           <div className="flex gap-2">
-            <Button variant="glass" size="sm" onClick={() => setPage(page - 1)} disabled={page <= 1}>
+            <Button variant="glass" size="sm" className="min-w-[44px] min-h-[44px]" onClick={() => setPage(page - 1)} disabled={page <= 1}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button variant="glass" size="sm" onClick={() => setPage(page + 1)} disabled={page >= totalPages}>
+            <Button variant="glass" size="sm" className="min-w-[44px] min-h-[44px]" onClick={() => setPage(page + 1)} disabled={page >= totalPages}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>

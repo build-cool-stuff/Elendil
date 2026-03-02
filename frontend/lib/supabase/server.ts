@@ -19,5 +19,10 @@ export function createServerClient() {
     )
   }
 
-  return createSupabaseClient(supabaseUrl, secretKey)
+  return createSupabaseClient(supabaseUrl, secretKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
 }

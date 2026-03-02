@@ -9,6 +9,7 @@ import { createServerClient } from '@/lib/supabase/server'
 export async function GET() {
   const adminId = await checkAdminApi()
   if (!adminId) {
+    console.error('[admin/notes] GET auth failed - checkAdminApi returned null')
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -21,6 +22,7 @@ export async function GET() {
     .order('updated_at', { ascending: false })
 
   if (error) {
+    console.error('[admin/notes] GET failed:', error.code, error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
@@ -34,6 +36,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const adminId = await checkAdminApi()
   if (!adminId) {
+    console.error('[admin/notes] POST auth failed - checkAdminApi returned null')
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -52,6 +55,7 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) {
+    console.error('[admin/notes] POST insert failed:', error.code, error.message, error.details)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 

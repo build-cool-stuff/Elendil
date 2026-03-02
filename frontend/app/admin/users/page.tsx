@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Card, Button } from "shared-components"
+import { toast } from "sonner"
 import {
   Users,
   Search,
@@ -11,6 +12,7 @@ import {
   QrCode,
   CreditCard,
   AlertTriangle,
+  X,
 } from "lucide-react"
 
 interface UserWithStats {
@@ -39,6 +41,18 @@ interface Pagination {
   pages: number
 }
 
+const avatarColors = [
+  "bg-blue-500/20 text-blue-300",
+  "bg-purple-500/20 text-purple-300",
+  "bg-emerald-500/20 text-emerald-300",
+  "bg-cyan-500/20 text-cyan-300",
+  "bg-pink-500/20 text-pink-300",
+]
+
+function getUserColor(email: string) {
+  return avatarColors[email.charCodeAt(0) % avatarColors.length]
+}
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserWithStats[]>([])
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 50, total: 0, pages: 0 })
@@ -58,10 +72,12 @@ export default function AdminUsersPage() {
       const params = new URLSearchParams({ page: page.toString(), limit: "50" })
       if (searchTerm) params.set("search", searchTerm)
       const res = await fetch(`/api/admin/users?${params}`)
+      if (!res.ok) throw new Error("Failed to load users")
       const data = await res.json()
       setUsers(data.users || [])
       setPagination(data.pagination)
     } catch (err) {
+      toast.error("Failed to load users")
       console.error("Failed to fetch users:", err)
     } finally {
       setLoading(false)
@@ -78,7 +94,10 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+          <Users className="h-5 w-5 text-blue-400" />
+        </div>
         <div>
           <h1 className="text-2xl font-bold text-white">Users</h1>
           <p className="text-white/50 text-sm mt-1">{pagination.total} total accounts</p>
@@ -94,13 +113,72 @@ export default function AdminUsersPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by email or name..."
-            className="w-full h-11 pl-11 pr-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all text-sm"
+            className="w-full h-11 pl-11 pr-10 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all text-sm"
           />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center text-white/30 hover:text-white/60 active:bg-white/10 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </Card>
 
-      {/* Users table */}
-      <Card variant="glass" className="overflow-hidden">
+      {/* Mobile card layout */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <Card key={i} variant="glass" className="p-4">
+              <div className="h-16 bg-white/5 rounded-lg animate-pulse" />
+            </Card>
+          ))
+        ) : users.length === 0 ? (
+          <Card variant="glass" className="p-12 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-4">
+              <Users className="h-8 w-8 text-white/30" />
+            </div>
+            <p className="text-white/50 font-medium">No users found</p>
+          </Card>
+        ) : (
+          users.map((user) => (
+            <Card key={user.id} variant="glass" className="p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`w-10 h-10 rounded-full ${getUserColor(user.email)} flex items-center justify-center text-sm font-medium shrink-0`}>
+                  {user.full_name?.charAt(0)?.toUpperCase() || user.email.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-white text-sm font-medium truncate">
+                    {user.full_name || "No name"}
+                  </p>
+                  <p className="text-white/40 text-xs truncate">{user.email}</p>
+                </div>
+                {user.degraded_since ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-red-500/20 text-red-300 shrink-0">
+                    <AlertTriangle className="h-3 w-3" /> Degraded
+                  </span>
+                ) : user.billing_active ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-green-500/20 text-green-300 shrink-0">
+                    <CreditCard className="h-3 w-3" /> Active
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-white/10 text-white/50 shrink-0">
+                    Free
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-4 text-xs text-white/40 ml-[52px]">
+                <span className="flex items-center gap-1"><QrCode className="h-3 w-3" /> {user.stats.campaign_count} campaigns</span>
+                <span className="flex items-center gap-1"><ScanLine className="h-3 w-3" /> {user.stats.scan_count.toLocaleString()} scans</span>
+              </div>
+            </Card>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <Card variant="glass" className="overflow-hidden hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -126,15 +204,19 @@ export default function AdminUsersPage() {
                 <tr>
                   <td colSpan={6} className="text-center py-12 text-white/40">
                     <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    No users found
+                    <p className="font-medium">No users found</p>
                   </td>
                 </tr>
               ) : (
-                users.map((user) => (
-                  <tr key={user.id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+                users.map((user, i) => (
+                  <tr
+                    key={user.id}
+                    className="border-b border-white/5 hover:bg-white/[0.03] transition-colors admin-fade-in"
+                    style={{ animationDelay: `${i * 20}ms` }}
+                  >
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/60 text-xs font-medium shrink-0">
+                        <div className={`w-8 h-8 rounded-full ${getUserColor(user.email)} flex items-center justify-center text-xs font-medium shrink-0`}>
                           {user.full_name?.charAt(0)?.toUpperCase() || user.email.charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
@@ -147,15 +229,15 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-5 py-4">
                       {user.degraded_since ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-red-500/20 text-red-300">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-red-500/20 text-red-300">
                           <AlertTriangle className="h-3 w-3" /> Degraded
                         </span>
                       ) : user.billing_active ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-green-500/20 text-green-300">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-green-500/20 text-green-300">
                           <CreditCard className="h-3 w-3" /> Active
                         </span>
                       ) : (
-                        <span className="px-2 py-1 rounded-md text-xs font-medium bg-white/10 text-white/50">
+                        <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-white/10 text-white/50">
                           No sub
                         </span>
                       )}
@@ -189,7 +271,7 @@ export default function AdminUsersPage() {
 
         {/* Pagination */}
         {pagination.pages > 1 && (
-          <div className="flex items-center justify-between px-5 py-3 border-t border-white/10">
+          <div className="flex items-center justify-between px-5 py-4 border-t border-white/10">
             <p className="text-white/40 text-sm">
               Page {pagination.page} of {pagination.pages}
             </p>
@@ -197,6 +279,7 @@ export default function AdminUsersPage() {
               <Button
                 variant="glass"
                 size="sm"
+                className="min-w-[44px] min-h-[44px]"
                 onClick={() => handlePageChange(pagination.page - 1)}
                 disabled={pagination.page <= 1}
               >
@@ -205,6 +288,7 @@ export default function AdminUsersPage() {
               <Button
                 variant="glass"
                 size="sm"
+                className="min-w-[44px] min-h-[44px]"
                 onClick={() => handlePageChange(pagination.page + 1)}
                 disabled={pagination.page >= pagination.pages}
               >
@@ -214,6 +298,35 @@ export default function AdminUsersPage() {
           </div>
         )}
       </Card>
+
+      {/* Mobile pagination */}
+      {!loading && pagination.pages > 1 && (
+        <div className="flex items-center justify-between md:hidden">
+          <p className="text-white/40 text-sm">
+            Page {pagination.page} of {pagination.pages}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="glass"
+              size="sm"
+              className="min-w-[44px] min-h-[44px]"
+              onClick={() => handlePageChange(pagination.page - 1)}
+              disabled={pagination.page <= 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="glass"
+              size="sm"
+              className="min-w-[44px] min-h-[44px]"
+              onClick={() => handlePageChange(pagination.page + 1)}
+              disabled={pagination.page >= pagination.pages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

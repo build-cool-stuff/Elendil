@@ -1,14 +1,11 @@
 "use client"
 
-import { useState, useEffect, use } from "react"
+import { useState, useEffect, useCallback, use } from "react"
 import Link from "next/link"
 import { Card, Button } from "shared-components"
+import { toast } from "sonner"
 import {
   ArrowLeft,
-  Clock,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
   Send,
   User,
   Shield,
@@ -62,36 +59,44 @@ export default function AdminTicketDetailPage({ params }: { params: Promise<{ id
   const [replyMessage, setReplyMessage] = useState("")
   const [isSending, setIsSending] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [newReplyId, setNewReplyId] = useState<string | null>(null)
 
-  const fetchTicket = async () => {
+  const fetchTicket = useCallback(async () => {
     try {
       const res = await fetch(`/api/admin/tickets/${id}`)
+      if (!res.ok) throw new Error("Failed to load ticket")
       const data = await res.json()
       setTicket(data.ticket)
       setReplies(data.replies || [])
     } catch (err) {
+      toast.error("Failed to load ticket")
       console.error("Failed to fetch ticket:", err)
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
 
   useEffect(() => {
     fetchTicket()
-  }, [id])
+  }, [fetchTicket])
 
   const updateTicket = async (field: string, value: string) => {
+    const previousTicket = ticket
+    // Optimistic
+    setTicket((prev) => prev ? { ...prev, [field]: value } : prev)
     try {
       const res = await fetch(`/api/admin/tickets/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [field]: value }),
       })
-      if (res.ok) {
-        const data = await res.json()
-        setTicket((prev) => prev ? { ...prev, ...data } : prev)
+      if (!res.ok) {
+        setTicket(previousTicket)
+        toast.error("Failed to update ticket")
       }
     } catch (err) {
+      setTicket(previousTicket)
+      toast.error("Failed to update ticket")
       console.error("Failed to update ticket:", err)
     }
   }
@@ -105,12 +110,18 @@ export default function AdminTicketDetailPage({ params }: { params: Promise<{ id
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: replyMessage.trim() }),
       })
-      if (res.ok) {
-        const data = await res.json()
-        setReplies((prev) => [...prev, data])
-        setReplyMessage("")
-      }
+      if (!res.ok) throw new Error("Failed to send reply")
+      const data = await res.json()
+      setReplies((prev) => [...prev, data])
+      setReplyMessage("")
+      setNewReplyId(data.id)
+      setTimeout(() => setNewReplyId(null), 500)
+      setTimeout(() => {
+        document.getElementById(`reply-${data.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }, 50)
+      toast.success("Reply sent")
     } catch (err) {
+      toast.error("Failed to send reply")
       console.error("Failed to send reply:", err)
     } finally {
       setIsSending(false)
@@ -131,7 +142,13 @@ export default function AdminTicketDetailPage({ params }: { params: Promise<{ id
     return (
       <div className="space-y-6">
         <Card variant="glass" className="p-12 text-center">
-          <p className="text-white/40">Ticket not found</p>
+          <p className="text-white/40 mb-4">Ticket not found</p>
+          <Link href="/admin/tickets">
+            <Button variant="glass" className="active:scale-95 transition-all">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Tickets
+            </Button>
+          </Link>
         </Card>
       </div>
     )
@@ -142,13 +159,13 @@ export default function AdminTicketDetailPage({ params }: { params: Promise<{ id
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link href="/admin/tickets">
-          <Button variant="glass" size="icon-sm">
+          <Button variant="glass" size="icon" className="min-w-[44px] min-h-[44px] active:scale-95 transition-all">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <div>
-          <h1 className="text-xl font-bold text-white">{ticket.subject}</h1>
-          <p className="text-white/40 text-sm">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-white truncate">{ticket.subject}</h1>
+          <p className="text-white/40 text-sm truncate">
             From {ticket.users.full_name || ticket.users.email} &middot; {new Date(ticket.created_at).toLocaleString()}
           </p>
         </div>
@@ -156,15 +173,15 @@ export default function AdminTicketDetailPage({ params }: { params: Promise<{ id
 
       {/* Status & priority controls */}
       <Card variant="glass" className="p-4">
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-4">
           <div>
             <label className="text-white/40 text-xs font-medium block mb-1.5">Status</label>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {statusOptions.map((s) => (
                 <button
                   key={s}
                   onClick={() => updateTicket("status", s)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize border ${
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-all capitalize border min-h-[40px] active:scale-95 ${
                     ticket.status === s
                       ? statusColors[s]
                       : "bg-white/5 text-white/40 border-white/5 hover:bg-white/10"
@@ -177,12 +194,12 @@ export default function AdminTicketDetailPage({ params }: { params: Promise<{ id
           </div>
           <div>
             <label className="text-white/40 text-xs font-medium block mb-1.5">Priority</label>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {priorityOptions.map((p) => (
                 <button
                   key={p}
                   onClick={() => updateTicket("priority", p)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize border ${
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-all capitalize border min-h-[40px] active:scale-95 ${
                     ticket.priority === p
                       ? priorityColors[p]
                       : "bg-white/5 text-white/40 border-white/5 hover:bg-white/10"
@@ -193,7 +210,7 @@ export default function AdminTicketDetailPage({ params }: { params: Promise<{ id
               ))}
             </div>
           </div>
-          <div className="ml-auto">
+          <div className="sm:ml-auto">
             <label className="text-white/40 text-xs font-medium block mb-1.5">Contact</label>
             <a
               href={`mailto:${ticket.users.email}`}
@@ -206,7 +223,7 @@ export default function AdminTicketDetailPage({ params }: { params: Promise<{ id
       </Card>
 
       {/* Original message */}
-      <Card variant="glass" className="p-6">
+      <Card variant="glass" className="p-4 sm:p-6">
         <div className="flex items-center gap-2 mb-3">
           <div className="w-7 h-7 rounded-full bg-purple-500/20 flex items-center justify-center">
             <User className="h-3.5 w-3.5 text-purple-300" />
@@ -225,7 +242,14 @@ export default function AdminTicketDetailPage({ params }: { params: Promise<{ id
       {replies.length > 0 && (
         <div className="space-y-3">
           {replies.map((reply) => (
-            <Card key={reply.id} variant="glass" className={`p-5 ${reply.author_type === "admin" ? "border-blue-500/20 ml-6" : ""}`}>
+            <Card
+              key={reply.id}
+              id={`reply-${reply.id}`}
+              variant="glass"
+              className={`p-4 sm:p-5 transition-all duration-300 ${
+                reply.author_type === "admin" ? "ml-2 sm:ml-6 border-l-2 border-blue-500/30" : ""
+              } ${newReplyId === reply.id ? "admin-fade-in" : ""}`}
+            >
               <div className="flex items-center gap-2 mb-2">
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
                   reply.author_type === "admin" ? "bg-blue-500/20" : "bg-purple-500/20"
@@ -249,7 +273,7 @@ export default function AdminTicketDetailPage({ params }: { params: Promise<{ id
       )}
 
       {/* Reply form */}
-      <Card variant="glass" className="p-5">
+      <Card variant="glass" className="p-4 sm:p-5">
         <label className="text-white/60 text-sm font-medium block mb-2">Reply as Admin</label>
         <textarea
           value={replyMessage}
@@ -261,12 +285,24 @@ export default function AdminTicketDetailPage({ params }: { params: Promise<{ id
         <div className="flex justify-end mt-3">
           <Button
             variant="glass"
-            className="h-10 px-6 bg-blue-500/20 hover:bg-blue-500/30"
+            className="h-11 px-6 bg-blue-500/20 hover:bg-blue-500/30 active:scale-95 transition-all"
             onClick={sendReply}
             disabled={isSending || !replyMessage.trim()}
           >
-            <Send className="h-4 w-4 mr-2" />
-            {isSending ? "Sending..." : "Send Reply"}
+            {isSending ? (
+              <>
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Sending...
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4" />
+                Send Reply
+              </>
+            )}
           </Button>
         </div>
       </Card>

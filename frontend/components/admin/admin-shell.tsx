@@ -48,13 +48,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <div className="absolute inset-0 bg-gradient-to-br from-blue-950/30 via-[#0a0a0f] to-purple-950/20" />
       </div>
 
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/60 md:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
+      {/* Mobile overlay — always in DOM for fade transition */}
+      <div
+        className={`fixed inset-0 z-40 bg-black/60 md:hidden transition-opacity duration-300 ${
+          mobileOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+        onClick={() => setMobileOpen(false)}
+      />
 
       {/* Mobile sidebar */}
       <div
@@ -70,7 +70,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </div>
             <button
               onClick={() => setMobileOpen(false)}
-              className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white/60 hover:text-white"
+              className="w-11 h-11 rounded-lg bg-white/10 flex items-center justify-center text-white/60 hover:text-white active:bg-white/20 transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -98,18 +98,20 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Main content */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 min-w-0">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 min-w-0 scroll-smooth pb-[env(safe-area-inset-bottom)]">
           {/* Mobile header */}
           <div className="flex items-center gap-3 mb-4 md:hidden">
             <button
               onClick={() => setMobileOpen(true)}
-              className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white"
+              className="w-11 h-11 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white active:bg-white/20 transition-colors"
             >
               <Menu className="h-5 w-5" />
             </button>
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-blue-400" />
-              <span className="text-white font-semibold">Admin Panel</span>
+              <span className="text-white font-semibold">
+                {navItems.find(item => isActive(item.href))?.label || "Admin Panel"}
+              </span>
             </div>
           </div>
 
@@ -143,13 +145,13 @@ function SidebarContent({
       </div>
 
       {/* Navigation */}
-      <nav className="flex flex-col gap-1 flex-1">
+      <nav className="flex flex-col gap-1.5 flex-1">
         <h4 className="text-white/40 text-xs font-medium uppercase tracking-wider mb-2 pl-3">Overview</h4>
         {navItems.map((item) => (
           <Link key={item.href} href={item.href} onClick={onNavigate}>
             <Button
               variant={isActive(item.href) ? "glass-active" : "glass"}
-              className="w-full h-10 px-3 flex items-center justify-start"
+              className="w-full h-11 px-3 flex items-center justify-start active:scale-[0.98] transition-all"
             >
               <span className="w-5 flex items-center justify-center shrink-0">
                 <item.icon className="h-4 w-4" />
@@ -161,9 +163,9 @@ function SidebarContent({
       </nav>
 
       {/* Bottom actions */}
-      <div className="mt-auto pt-4 border-t border-white/10 flex flex-col gap-1">
+      <div className="mt-auto pt-4 border-t border-white/10 flex flex-col gap-1.5 pb-[env(safe-area-inset-bottom)]">
         <Link href="/dashboard?from=user" onClick={onNavigate}>
-          <Button variant="glass" className="w-full h-10 px-3 flex items-center justify-start">
+          <Button variant="glass" className="w-full h-11 px-3 flex items-center justify-start active:scale-[0.98] transition-all">
             <span className="w-5 flex items-center justify-center shrink-0">
               <ArrowLeft className="h-4 w-4" />
             </span>
@@ -172,7 +174,7 @@ function SidebarContent({
         </Link>
         <Button
           variant="glass"
-          className="w-full h-10 px-3 flex items-center justify-start"
+          className="w-full h-11 px-3 flex items-center justify-start active:scale-[0.98] transition-all"
           onClick={onLogout}
         >
           <span className="w-5 flex items-center justify-center shrink-0">
